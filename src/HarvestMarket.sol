@@ -22,7 +22,6 @@ interface ERC1155Partial is ERCBase {
 struct Auction {
     address tokenAddress;
     address highestBidder;
-    uint256 startTime;
     uint256 endTime;
     uint256 highestBid;
     bool claimed;
@@ -73,7 +72,6 @@ contract HarvestMarket is Ownable {
         auctions[nextAuctionId] = Auction({
             tokenAddress: _tokenAddress,
             tokenIds: _tokenIds,
-            startTime: block.timestamp,
             endTime: block.timestamp + 7 days,
             highestBidder: msg.sender,
             highestBid: msg.value,

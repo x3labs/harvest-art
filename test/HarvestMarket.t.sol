@@ -32,7 +32,7 @@ contract HarvestMarketTest is Test {
         assertEq(user1.balance, startBalance - 0.05 ether, "Balance should decrease by 0.05 ether");
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
 
-        (address tokenAddress, address highestBidder,,, uint256 highestBid,,) = market.auctions(1);
+        (address tokenAddress, address highestBidder,, uint256 highestBid,,) = market.auctions(1);
 
         assertEq(tokenAddress, tokenAddress1);
         assertEq(highestBidder, user1);
@@ -43,7 +43,7 @@ contract HarvestMarketTest is Test {
         market.startAuction{value: 0.05 ether}(tokenAddress1, tokenIds);
         market.bid{value: 0.06 ether}(1);
 
-        (, address highestBidder,,, uint256 highestBid,,) = market.auctions(1);
+        (, address highestBidder,, uint256 highestBid,,) = market.auctions(1);
 
         assertEq(highestBidder, user1, "Highest bidder should be this contract");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
@@ -55,7 +55,7 @@ contract HarvestMarketTest is Test {
             fail("Should not allow bids below the minimum increment");
         } catch {}
 
-        (,,,, uint256 highestBid,,) = market.auctions(1);
+        (,,, uint256 highestBid,,) = market.auctions(1);
         assertEq(highestBid, 0.05 ether, "Highest bid should remain 0.05 ether");
     }
 
@@ -79,7 +79,7 @@ contract HarvestMarketTest is Test {
             fail("Should not allow bids after the auction has ended");
         } catch {}
 
-        (,,,, uint256 highestBid,,) = market.auctions(1);
+        (,,, uint256 highestBid,,) = market.auctions(1);
         assertEq(highestBid, 0.05 ether, "Highest bid should remain 0.05 ether");
     }
 
@@ -87,7 +87,7 @@ contract HarvestMarketTest is Test {
         market.startAuction{value: 0.05 ether}(tokenAddress1, tokenIds);
         market.bid{value: 0.06 ether}(1);
 
-        (, address highestBidder,,, uint256 highestBid,,) = market.auctions(1);
+        (, address highestBidder,, uint256 highestBid,,) = market.auctions(1);
 
         assertEq(highestBidder, user1, "Highest bidder should be this contract");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
@@ -99,7 +99,7 @@ contract HarvestMarketTest is Test {
             fail("Should not allow claiming before the auction has ended");
         } catch {}
 
-        (, address highestBidder,,,,,) = market.auctions(1);
+        (, address highestBidder,,,,) = market.auctions(1);
         assertEq(highestBidder, user1, "Highest bidder should remain unchanged");
     }
 
@@ -114,7 +114,7 @@ contract HarvestMarketTest is Test {
         } catch {}
         vm.stopPrank();
 
-        (, address highestBidder,,,,,) = market.auctions(1);
+        (, address highestBidder,,,,) = market.auctions(1);
         assertEq(highestBidder, user1, "Highest bidder should remain unchanged");
     }
 
@@ -150,7 +150,7 @@ contract HarvestMarketTest is Test {
         vm.startPrank(address(this));
         market.withdraw(auctionIds);
 
-        (,,,,,, bool withdrawn) = market.auctions(auctionId);
+        (,,,,, bool withdrawn) = market.auctions(auctionId);
         assertTrue(withdrawn, "Auction should be marked as withdrawn");
     }
 
