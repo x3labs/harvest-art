@@ -19,34 +19,37 @@ interface ERC1155Partial is ERCBase {
     function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata) external;
 }
 
+struct Auction {
+    address tokenAddress;
+    address highestBidder;
+    uint256 startTime;
+    uint256 endTime;
+    uint256 highestBid;
+    bool claimed;
+    bool withdrawn;
+    uint256[] tokenIds;
+}
+
 contract HarvestMarket is Ownable {
     using Address for address;
-
-    struct Auction {
-        address tokenAddress;
-        address highestBidder;
-        uint256 startTime;
-        uint256 endTime;
-        uint256 startPrice;
-        uint256 highestBid;
-        uint256[] tokenIds;
-        uint256[] amounts;
-    }
 
     bytes4 _ERC721 = 0x80ac58cd;
     bytes4 _ERC1155 = 0xd9b67a26;
 
     address payable public BarnAddress;
 
-    uint256 public constant MINIMUM_START_PRICE = 0.05 ether;
-    uint256 public constant MINIMUM_BID_INCREMENT = 0.01 ether;
-    uint256 public maxTokens = 1000;
+    uint256 public minStartPrice = 0.05 ether;
+    uint256 public minBidIncrement = 0.01 ether;
+    uint256 public maxTokens = 50;
     uint256 public nextAuctionId = 1;
 
     mapping(uint256 => Auction) public auctions;
 
+    error AuctionActive();
+    error AuctionClaimed();
     error AuctionEnded();
     error AuctionNotEnded();
+    error AuctionWithdrawn();
     error BidTooLow();
     error InvalidTokenAddress();
     error NotApproved();
@@ -54,30 +57,35 @@ contract HarvestMarket is Ownable {
     error TooManyTokens();
     error TransferFailed();
 
-    function createAuction(address _tokenAddress, uint256[] calldata _tokenIds, uint256[] calldata _amounts)
-        external
-        payable
-    {
+    event AuctionStarted(address indexed bidder, address indexed tokenAddress, uint256[] indexed tokenIds);
+    event Claimed(uint256 indexed auctionId, address indexed winner);
+    event NewBid(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
+
+    function startAuction(address _tokenAddress, uint256[] calldata _tokenIds) external payable {
         if (_tokenIds.length > maxTokens) {
             revert TooManyTokens();
         }
 
-        if (msg.value < MINIMUM_START_PRICE) {
+        if (msg.value < minStartPrice) {
             revert BidTooLow();
         }
 
         auctions[nextAuctionId] = Auction({
             tokenAddress: _tokenAddress,
             tokenIds: _tokenIds,
-            amounts: _amounts,
             startTime: block.timestamp,
             endTime: block.timestamp + 7 days,
-            startPrice: msg.value,
             highestBidder: msg.sender,
-            highestBid: msg.value
+            highestBid: msg.value,
+            claimed: false,
+            withdrawn: false
         });
 
-        nextAuctionId++;
+        unchecked {
+            nextAuctionId++;
+        }
+
+        emit AuctionStarted(msg.sender, _tokenAddress, _tokenIds);
     }
 
     function bid(uint256 _auctionId) external payable {
@@ -87,8 +95,12 @@ contract HarvestMarket is Ownable {
             revert AuctionEnded();
         }
 
-        if (msg.value < auction.highestBid + MINIMUM_BID_INCREMENT) {
+        if (msg.value < auction.highestBid + minBidIncrement) {
             revert BidTooLow();
+        }
+
+        if (block.timestamp >= auction.endTime - 1 hours) {
+            auction.endTime += 1 hours;
         }
 
         if (auction.highestBidder != address(0)) {
@@ -98,6 +110,8 @@ contract HarvestMarket is Ownable {
 
         auction.highestBidder = msg.sender;
         auction.highestBid = msg.value;
+
+        emit NewBid(_auctionId, msg.sender, msg.value);
     }
 
     function claim(uint256 _auctionId) external {
@@ -111,33 +125,66 @@ contract HarvestMarket is Ownable {
             revert NotHighestBidder();
         }
 
+        if (auction.claimed) {
+            revert AuctionClaimed();
+        }
+
+        auctions[_auctionId].claimed = true;
+
         ERCBase tokenContract = ERCBase(auction.tokenAddress);
 
-        for (uint256 i = 0; i < auction.tokenIds.length;) {
-            if (tokenContract.supportsInterface(_ERC721)) {
+        if (tokenContract.supportsInterface(_ERC721)) {
+            for (uint256 i = 0; i < auction.tokenIds.length;) {
                 IERC721(auction.tokenAddress).transferFrom(BarnAddress, auction.highestBidder, auction.tokenIds[i]);
-            } else if (tokenContract.supportsInterface(_ERC1155)) {
-                IERC1155(auction.tokenAddress).safeTransferFrom(
-                    BarnAddress, auction.highestBidder, auction.tokenIds[i], auction.amounts[i], ""
-                );
-            } else {
-                revert InvalidTokenAddress();
+
+                unchecked {
+                    i++;
+                }
             }
+        } else if (tokenContract.supportsInterface(_ERC1155)) {
+            for (uint256 i = 0; i < auction.tokenIds.length;) {
+                IERC1155(auction.tokenAddress).safeTransferFrom(
+                    BarnAddress, auction.highestBidder, auction.tokenIds[i], 1, ""
+                );
+
+                unchecked {
+                    i++;
+                }
+            }
+        } else {
+            revert InvalidTokenAddress();
+        }
+
+        (bool success,) = BarnAddress.call{value: auction.highestBid}("");
+        if (!success) revert TransferFailed();
+
+        emit Claimed(_auctionId, msg.sender);
+    }
+
+    function withdraw(uint256[] memory auctionIds) external onlyOwner {
+        uint256 totalAmount = 0;
+
+        for (uint256 i = 0; i < auctionIds.length;) {
+            Auction storage auction = auctions[auctionIds[i]];
+
+            if (auction.withdrawn) {
+                revert AuctionWithdrawn();
+            }
+
+            if (block.timestamp <= auction.endTime) {
+                revert AuctionActive();
+            }
+
+            totalAmount += auction.highestBid;
+            auctions[auctionIds[i]].withdrawn = true;
 
             unchecked {
                 i++;
             }
         }
 
-        (bool success,) = BarnAddress.call{value: auction.highestBid}("");
-        if (!success) revert TransferFailed();
-
-        delete auctions[_auctionId];
-    }
-
-    function withdraw() external onlyOwner {
-        (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
-        if (!success) revert TransferFailed();
+        (bool success,) = payable(msg.sender).call{value: totalAmount}("");
+        require(success, "Transfer failed");
     }
 
     function setBarnAddress(address payable _barnAddress) external onlyOwner {
@@ -146,5 +193,13 @@ contract HarvestMarket is Ownable {
 
     function setMaxTokens(uint256 _maxTokens) external onlyOwner {
         maxTokens = _maxTokens;
+    }
+
+    function setMinStartPrice(uint256 _minStartPrice) external onlyOwner {
+        minStartPrice = _minStartPrice;
+    }
+
+    function setMinBidIncrement(uint256 _minBidIncrement) external onlyOwner {
+        minBidIncrement = _minBidIncrement;
     }
 }
