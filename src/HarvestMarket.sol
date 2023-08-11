@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "solady/src/auth/Ownable.sol";
 
 bytes4 constant _ERC721 = 0x80ac58cd;
 bytes4 constant _ERC1155 = 0xd9b67a26;
@@ -56,6 +56,10 @@ contract HarvestMarket is Ownable {
     event AuctionStarted(address indexed bidder, address indexed tokenAddress, uint256[] indexed tokenIds);
     event Claimed(uint256 indexed auctionId, address indexed winner);
     event NewBid(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
+
+    constructor() {
+        _initializeOwner(msg.sender);
+    }
 
     function startAuction(address _tokenAddress, uint256[] calldata _tokenIds) external payable {
         if (_tokenIds.length > maxTokens) {
