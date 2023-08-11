@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+
+bytes4 constant _ERC721 = 0x80ac58cd;
+bytes4 constant _ERC1155 = 0xd9b67a26;
 
 interface ERCBase {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
@@ -30,12 +32,7 @@ struct Auction {
 }
 
 contract HarvestMarket is Ownable {
-    using Address for address;
-
-    bytes4 _ERC721 = 0x80ac58cd;
-    bytes4 _ERC1155 = 0xd9b67a26;
-
-    address payable public BarnAddress;
+    address payable public barnAddress;
 
     uint256 public minStartPrice = 0.05 ether;
     uint256 public minBidIncrement = 0.01 ether;
@@ -133,7 +130,7 @@ contract HarvestMarket is Ownable {
 
         if (tokenContract.supportsInterface(_ERC721)) {
             for (uint256 i = 0; i < auction.tokenIds.length;) {
-                IERC721(auction.tokenAddress).transferFrom(BarnAddress, auction.highestBidder, auction.tokenIds[i]);
+                IERC721(auction.tokenAddress).transferFrom(barnAddress, auction.highestBidder, auction.tokenIds[i]);
 
                 unchecked {
                     i++;
@@ -142,7 +139,7 @@ contract HarvestMarket is Ownable {
         } else if (tokenContract.supportsInterface(_ERC1155)) {
             for (uint256 i = 0; i < auction.tokenIds.length;) {
                 IERC1155(auction.tokenAddress).safeTransferFrom(
-                    BarnAddress, auction.highestBidder, auction.tokenIds[i], 1, ""
+                    barnAddress, auction.highestBidder, auction.tokenIds[i], 1, ""
                 );
 
                 unchecked {
@@ -153,7 +150,7 @@ contract HarvestMarket is Ownable {
             revert InvalidTokenAddress();
         }
 
-        (bool success,) = BarnAddress.call{value: auction.highestBid}("");
+        (bool success,) = barnAddress.call{value: auction.highestBid}("");
         if (!success) revert TransferFailed();
 
         emit Claimed(_auctionId, msg.sender);
@@ -186,7 +183,7 @@ contract HarvestMarket is Ownable {
     }
 
     function setBarnAddress(address payable _barnAddress) external onlyOwner {
-        BarnAddress = _barnAddress;
+        barnAddress = _barnAddress;
     }
 
     function setMaxTokens(uint256 _maxTokens) external onlyOwner {
