@@ -7,3 +7,6 @@
 [submodule "lib/ERC1155P"]
 	path = lib/ERC1155P
 	url = https://github.com/0xth0mas/ERC1155P
+[submodule "lib/solady"]
+	path = lib/solady
+	url = https://github.com/vectorized/solady
