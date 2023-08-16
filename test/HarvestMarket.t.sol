@@ -4,33 +4,46 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "../src/HarvestMarket.sol";
+import "../src/BidTicket.sol";
 
 contract HarvestMarketTest is Test {
-    HarvestMarket market;
+    HarvestMarket public market;
+    BidTicket public bidTicket;
+    address public theBarn;
     address public tokenAddress1;
     address public user1;
     address public user2;
-    uint256[] tokenIds = [1, 2, 3];
+    uint256[] public tokenIds = [1, 2, 3];
 
     receive() external payable {}
     fallback() external payable {}
 
     function setUp() public {
-        market = new HarvestMarket();
-        market.setBarnAddress(payable(address(this)));
-        user1 = vm.addr(1);
-        user2 = vm.addr(2);
+        theBarn = vm.addr(1);
+        bidTicket = new BidTicket();
+        market = new HarvestMarket(address(theBarn), address(bidTicket));
+
+        user1 = vm.addr(2);
+        user2 = vm.addr(3);
+
+        bidTicket.setMarketContract(address(market));
+        bidTicket.mint(user1, 1, 100, "");
+        bidTicket.mint(user2, 1, 100, "");
+
         vm.deal(user1, 1 ether);
         vm.deal(user2, 1 ether);
+
         vm.startPrank(user1);
     }
 
     function testStartAuction() public {
         uint256 startBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 100);
 
         market.startAuction{value: 0.05 ether}(tokenAddress1, tokenIds);
         assertEq(user1.balance, startBalance - 0.05 ether, "Balance should decrease by 0.05 ether");
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
+        assertEq(bidTicket.balanceOf(user1, 1), 90);
 
         (address tokenAddress, address highestBidder,, uint256 highestBid,,) = market.auctions(1);
 
@@ -39,9 +52,17 @@ contract HarvestMarketTest is Test {
         assertEq(highestBid, 0.05 ether);
     }
 
-    function testBid() public {
+    function testFailStartAuctionWithoutEnoughBidTickets() public {
+        bidTicket.burn(user1, 1, 100);
         market.startAuction{value: 0.05 ether}(tokenAddress1, tokenIds);
+    }
+
+    function testBid() public {
+        assertEq(bidTicket.balanceOf(user1, 1), 100);
+        market.startAuction{value: 0.05 ether}(tokenAddress1, tokenIds);
+        assertEq(bidTicket.balanceOf(user1, 1), 90);
         market.bid{value: 0.06 ether}(1);
+        assertEq(bidTicket.balanceOf(user1, 1), 89);
 
         (, address highestBidder,, uint256 highestBid,,) = market.auctions(1);
 
