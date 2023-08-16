@@ -38,6 +38,8 @@ contract HarvestArt is Ownable {
     error TokenNotYetApproved();
     error TransferFailed();
 
+    event BatchTransfer(address indexed user, uint256 indexed totalTokens);
+
     constructor(address bidTicket_) {
         _initializeOwner(msg.sender);
         bidTicket = IBidTicket(bidTicket_);
@@ -100,6 +102,8 @@ contract HarvestArt is Ownable {
 
         (bool sent,) = payable(msg.sender).call{value: totalPrice}("");
         if (!sent) revert TransferFailed();
+
+        emit BatchTransfer(msg.sender, totalTokens);
     }
 
     function _getPrice(address contractAddress) internal view returns (uint256) {
