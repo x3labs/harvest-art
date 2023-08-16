@@ -213,6 +213,10 @@ contract HarvestMarket is Ownable {
         bidTicket = IBidTicket(bidTicket_);
     }
 
+    function setBidTicketTokenId(uint256 bidTicketTokenId_) external onlyOwner {
+        bidTicketTokenId = bidTicketTokenId_;
+    }
+
     function setMaxTokens(uint256 maxTokens_) external onlyOwner {
         maxTokens = maxTokens_;
     }

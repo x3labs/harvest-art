@@ -21,7 +21,10 @@ contract HarvestArtTest is Test {
     address public user2;
 
     function setUp() public {
-        harvestArt = new HarvestArt();
+        bidTicket = new BidTicket();
+        harvestArt = new HarvestArt(address(bidTicket));
+        bidTicket.setHarvestContract(address(harvestArt));
+
         mock721 = new Mock721();
         mock1155 = new Mock1155();
 

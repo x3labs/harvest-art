@@ -16,14 +16,17 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "solady/src/auth/Ownable.sol";
 import "../src/IERCBase.sol";
+import "../src/IBidTicket.sol";
 
 bytes4 constant ERC721_INTERFACE = 0x80ac58cd;
 bytes4 constant ERC1155_INTERFACE = 0xd9b67a26;
 
 contract HarvestArt is Ownable {
-    address public theBarn = address(0);
+    address public theBarn;
+    IBidTicket public bidTicket;
     uint256 public defaultPrice = 1 gwei;
     uint256 public maxTokensPerTx = 100;
+    uint256 public bidTicketTokenId = 1;
 
     mapping(address => uint256) private _contractPrices;
 
@@ -35,8 +38,9 @@ contract HarvestArt is Ownable {
     error TokenNotYetApproved();
     error TransferFailed();
 
-    constructor() {
+    constructor(address bidTicket_) {
         _initializeOwner(msg.sender);
+        bidTicket = IBidTicket(bidTicket_);
     }
 
     function batchTransfer(address[] calldata tokenContracts, uint256[] calldata tokenIds, uint256[] calldata counts)
@@ -92,6 +96,8 @@ contract HarvestArt is Ownable {
             }
         }
 
+        bidTicket.mint(msg.sender, bidTicketTokenId, totalTokens, "");
+
         (bool sent,) = payable(msg.sender).call{value: totalPrice}("");
         if (!sent) revert TransferFailed();
     }
@@ -118,6 +124,14 @@ contract HarvestArt is Ownable {
 
     function setPriceByContract(address contractAddress, uint256 price) public onlyOwner {
         _contractPrices[contractAddress] = price;
+    }
+
+    function setBidTicketAddress(address bidTicket_) external onlyOwner {
+        bidTicket = IBidTicket(bidTicket_);
+    }
+
+    function setBidTicketTokenId(uint256 bidTicketTokenId_) external onlyOwner {
+        bidTicketTokenId = bidTicketTokenId_;
     }
 
     function withdrawBalance() external onlyOwner {
