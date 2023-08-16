@@ -12,3 +12,12 @@ docs/
 
 # Dotenv file
 .env
+
+# Libraries
+lib/
+
+# Coverage
+coverage/
+
+# Local files
+.vscode/
