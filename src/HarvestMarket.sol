@@ -205,7 +205,7 @@ contract HarvestMarket is Ownable {
         if (!success) revert TransferFailed();
     }
 
-    function setBarnAddress(address payable theBarn_) external onlyOwner {
+    function setBarnAddress(address theBarn_) external onlyOwner {
         theBarn = theBarn_;
     }
 

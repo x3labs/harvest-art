@@ -20,6 +20,9 @@ contract HarvestArtTest is Test {
     address public user1;
     address public user2;
 
+    receive() external payable {}
+    fallback() external payable {}
+
     function setUp() public {
         bidTicket = new BidTicket();
         harvestArt = new HarvestArt(address(bidTicket));
@@ -118,5 +121,38 @@ contract HarvestArtTest is Test {
         vm.startPrank(user2);
         mock1155.setApprovalForAll(address(harvestArt), true);
         harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
+    }
+
+    function testWithdrawBalance() public {
+        harvestArt.withdrawBalance();
+    }
+
+    function testFailWithdrawBalanceByNonOwner() public {
+        vm.prank(user1);
+        harvestArt.withdrawBalance();
+    }
+
+    function testSetPriceByContract() public {
+        harvestArt.setPriceByContract(vm.addr(69), 1 ether);
+    }
+
+    function testSetDefaultPrice() public {
+        harvestArt.setDefaultPrice(1 gwei);
+    }
+
+    function testSetBidTicketAddress() public {
+        harvestArt.setBidTicketAddress(address(bidTicket));
+    }
+
+    function testSetBidTicketTokenId() public {
+        harvestArt.setBidTicketTokenId(1);
+    }
+
+    function testSetBarn() public {
+        harvestArt.setBarn(vm.addr(420));
+    }
+
+    function testSetMaxTokensPerTx() public {
+        harvestArt.setMaxTokensPerTx(1000000);
     }
 }

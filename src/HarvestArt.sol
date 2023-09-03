@@ -22,8 +22,8 @@ bytes4 constant ERC721_INTERFACE = 0x80ac58cd;
 bytes4 constant ERC1155_INTERFACE = 0xd9b67a26;
 
 contract HarvestArt is Ownable {
-    address public theBarn;
     IBidTicket public bidTicket;
+    address public theBarn;
     uint256 public defaultPrice = 1 gwei;
     uint256 public maxTokensPerTx = 100;
     uint256 public bidTicketTokenId = 1;
@@ -61,16 +61,19 @@ contract HarvestArt is Ownable {
         }
 
         IERCBase tokenContract;
-        uint256 totalTokens = 0;
-        uint256 totalPrice = 0;
+        uint256 totalTokens;
+        uint256 totalPrice;
 
-        for (uint256 i = 0; i < tokenContracts.length;) {
+        for (uint256 i; i < tokenContracts.length;) {
             if (counts[i] == 0) revert InvalidTokenCount();
 
             tokenContract = IERCBase(tokenContracts[i]);
 
             if (tokenContract.supportsInterface(ERC721_INTERFACE)) {
-                totalTokens += 1;
+                unchecked {
+                    totalTokens++;
+                }
+
                 totalPrice += _getPrice(tokenContracts[i]);
             } else if (tokenContract.supportsInterface(ERC1155_INTERFACE)) {
                 totalTokens += counts[i];
