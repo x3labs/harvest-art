@@ -16,6 +16,7 @@ contract HarvestMarketTest is Test {
     address public user2;
     uint256 public tokenCount = 10;
     uint256[] public tokenIds = [0, 1, 2];
+    uint8[] public amounts = [1, 1, 1];
 
     receive() external payable {}
     fallback() external payable {}
@@ -50,12 +51,12 @@ contract HarvestMarketTest is Test {
         uint256 startBalance = user1.balance;
         assertEq(bidTicket.balanceOf(user1, 1), 100);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
         assertEq(user1.balance, startBalance - 0.05 ether, "Balance should decrease by 0.05 ether");
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
-        assertEq(bidTicket.balanceOf(user1, 1), 90);
+        assertEq(bidTicket.balanceOf(user1, 1), 95);
 
-        (address tokenAddress, address highestBidder,, uint256 highestBid,,) = market.auctions(1);
+        (address tokenAddress, address highestBidder, uint256 highestBid,,,) = market.auctions(1);
 
         assertEq(tokenAddress, address(mock721));
         assertEq(highestBidder, user1);
@@ -66,8 +67,9 @@ contract HarvestMarketTest is Test {
         vm.startPrank(user1);
 
         uint256[] memory manyTokenIds = new uint256[](1001);
+        uint8[] memory manyAmounts = new uint8[](1001);
 
-        try market.startAuction{value: 0.05 ether}(address(mock721), manyTokenIds) {
+        try market.startAuction{value: 0.05 ether}(address(mock721), manyTokenIds, manyAmounts) {
             fail("Should not allow creating an auction with too many tokens");
         } catch {}
 
@@ -80,18 +82,22 @@ contract HarvestMarketTest is Test {
 
         uint256 nextAuctionId = market.nextAuctionId();
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
         skip(60 * 60 * 24 * 7 + 1);
         market.claim(nextAuctionId);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        mock721.transferFrom(user1, theBarn, tokenIds[0]);
+        mock721.transferFrom(user1, theBarn, tokenIds[1]);
+        mock721.transferFrom(user1, theBarn, tokenIds[2]);
+
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
         assertEq(market.nextAuctionId(), nextAuctionId + 2, "nextAuctionId should be incremented");
     }
 
     function testStartAuctionWithLowStartPrice() public {
         vm.startPrank(user1);
 
-        try market.startAuction{value: 0.04 ether}(address(mock721), tokenIds) {
+        try market.startAuction{value: 0.04 ether}(address(mock721), tokenIds, amounts) {
             fail("Should not allow creating an auction with a start price below the minimum");
         } catch {}
 
@@ -102,14 +108,14 @@ contract HarvestMarketTest is Test {
     function testFailStartAuctionWithoutEnoughBidTickets() public {
         vm.startPrank(user1);
         bidTicket.burn(user1, 1, 100);
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
     }
 
     function testFailStartAuctionWithOverlappingTokens() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
     }
 
     //
@@ -119,12 +125,12 @@ contract HarvestMarketTest is Test {
         vm.startPrank(user1);
 
         assertEq(bidTicket.balanceOf(user1, 1), 100);
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
-        assertEq(bidTicket.balanceOf(user1, 1), 90);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        assertEq(bidTicket.balanceOf(user1, 1), 95);
         market.bid{value: 0.06 ether}(1);
-        assertEq(bidTicket.balanceOf(user1, 1), 89);
+        assertEq(bidTicket.balanceOf(user1, 1), 94);
 
-        (, address highestBidder,, uint256 highestBid,,) = market.auctions(1);
+        (, address highestBidder, uint256 highestBid,,,) = market.auctions(1);
 
         assertEq(highestBidder, user1, "Highest bidder should be this contract");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
@@ -133,21 +139,21 @@ contract HarvestMarketTest is Test {
     function testBidBelowMinimumIncrement() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
 
         try market.bid{value: 0.055 ether}(1) {
             fail("Should not allow bids below the minimum increment");
         } catch {}
 
-        (,,, uint256 highestBid,,) = market.auctions(1);
+        (,, uint256 highestBid,,,) = market.auctions(1);
         assertEq(highestBid, 0.05 ether, "Highest bid should remain 0.05 ether");
     }
 
     function testBidRevertOnEqualBid() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
-        uint256 auctionId = market.nextAuctionId() - 1;
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        uint32 auctionId = market.nextAuctionId() - 1;
 
         market.bid{value: 0.06 ether}(auctionId);
 
@@ -159,7 +165,7 @@ contract HarvestMarketTest is Test {
     function testBidAfterAuctionEnded() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
 
         skip(60 * 60 * 24 * 7 + 1);
 
@@ -167,7 +173,7 @@ contract HarvestMarketTest is Test {
             fail("Should not allow bids after the auction has ended");
         } catch {}
 
-        (,,, uint256 highestBid,,) = market.auctions(1);
+        (,, uint256 highestBid,,,) = market.auctions(1);
         assertEq(highestBid, 0.05 ether, "Highest bid should remain 0.05 ether");
     }
 
@@ -177,14 +183,14 @@ contract HarvestMarketTest is Test {
     function testClaim() public {
         vm.startPrank(user1);
 
-        uint256 auctionId = market.nextAuctionId();
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        uint32 auctionId = market.nextAuctionId();
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
         assertEq(user1.balance, 0.95 ether, "user1 should have 0.95 after starting the auction");
 
         vm.startPrank(user2);
         market.bid{value: 0.06 ether}(auctionId);
 
-        (, address highestBidder,, uint256 highestBid,,) = market.auctions(auctionId);
+        (, address highestBidder, uint256 highestBid,,,) = market.auctions(auctionId);
 
         assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
         assertEq(user2.balance, 0.94 ether, "user2 should have 0.95 ether");
@@ -202,7 +208,7 @@ contract HarvestMarketTest is Test {
     function testClaimBeforeAuctionEnded() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
 
         try market.claim(1) {
             fail("Should not allow claiming before the auction has ended");
@@ -215,7 +221,7 @@ contract HarvestMarketTest is Test {
     function testClaimByNonHighestBidder() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
 
         skip(60 * 60 * 24 * 7 + 1);
 
@@ -237,10 +243,10 @@ contract HarvestMarketTest is Test {
     function testWithdrawSuccessful() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
 
-        uint256 auctionId = market.nextAuctionId() - 1;
-        uint256[] memory auctionIds = new uint256[](1);
+        uint32 auctionId = market.nextAuctionId() - 1;
+        uint32[] memory auctionIds = new uint32[](1);
         auctionIds[0] = auctionId;
 
         skip(60 * 60 * 24 * 7 + 1);
@@ -255,10 +261,10 @@ contract HarvestMarketTest is Test {
     function testWithdrawRevertOnActiveAuction() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
 
-        uint256 auctionId = market.nextAuctionId() - 1;
-        uint256[] memory auctionIds = new uint256[](1);
+        uint32 auctionId = market.nextAuctionId() - 1;
+        uint32[] memory auctionIds = new uint32[](1);
         auctionIds[0] = auctionId;
 
         skip(60 * 60 * 24 * 7 + 1);
@@ -274,10 +280,10 @@ contract HarvestMarketTest is Test {
     function testWithdrawRevertOnAlreadyWithdrawnAuction() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
 
-        uint256 auctionId = market.nextAuctionId() - 1;
-        uint256[] memory auctionIds = new uint256[](1);
+        uint32 auctionId = market.nextAuctionId() - 1;
+        uint32[] memory auctionIds = new uint32[](1);
         auctionIds[0] = auctionId;
 
         skip(60 * 60 * 24 * 7 + 1);
@@ -297,14 +303,14 @@ contract HarvestMarketTest is Test {
         market.setMinStartPrice(0.01 ether);
 
         vm.startPrank(user1);
-        market.startAuction{value: 0.01 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.01 ether}(address(mock721), tokenIds, amounts);
     }
 
     function testSetMinBidIncrement() public {
         market.setMinBidIncrement(0.02 ether);
 
         vm.startPrank(user1);
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
 
         market.bid{value: 0.07 ether}(1);
 
@@ -332,20 +338,15 @@ contract HarvestMarketTest is Test {
     }
 
     function testSetBidTicketTokenId() public {
-        market.setBidTicketTokenId(420);
+        market.setBidTicketTokenId(255);
     }
 
     function testFailSetBidTicketTokenIdByNonOwner() public {
         vm.prank(vm.addr(69));
-        market.setBidTicketTokenId(420);
+        market.setBidTicketTokenId(255);
     }
 
     function testSetMaxTokens() public {
-        market.setMaxTokens(10000);
-    }
-
-    function testFailSetMaxTokensByNonOwner() public {
-        vm.prank(vm.addr(69));
-        market.setMaxTokens(100000000000);
+        market.setMaxTokens(255);
     }
 }

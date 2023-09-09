@@ -17,18 +17,17 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "solady/src/auth/Ownable.sol";
 import "../src/IBidTicket.sol";
 import "../src/IERCBase.sol";
-import "forge-std/console.sol";
 
 bytes4 constant ERC721_INTERFACE = 0x80ac58cd;
 bytes4 constant ERC1155_INTERFACE = 0xd9b67a26;
 
 struct Auction {
+    address tokenAddress;
+    address highestBidder;
     uint64 highestBid;
     uint64 endTime;
     bool claimed;
     bool withdrawn;
-    address highestBidder;
-    address tokenAddress;
     mapping(uint8 => uint256) tokenIds;
     mapping(uint8 => uint8) amounts;
 }
@@ -106,7 +105,7 @@ contract HarvestMarket is Ownable {
         auction.highestBidder = msg.sender;
         auction.highestBid = uint64(msg.value);
 
-        for (uint256 i; i < tokenIds.length;) {
+        for (uint8 i; i < tokenIds.length;) {
             auction.tokenIds[i] = tokenIds[i];
             auction.amounts[i] = amounts[i];
 
@@ -123,7 +122,7 @@ contract HarvestMarket is Ownable {
     }
 
     function bid(uint256 auctionId) external payable {
-        Auction storage auction = auctions[auctionId];
+        Auction storage auction = auctions[uint32(auctionId)];
 
         if (block.timestamp >= auction.endTime) {
             revert AuctionEnded();
@@ -149,13 +148,13 @@ contract HarvestMarket is Ownable {
         }
 
         auction.highestBidder = msg.sender;
-        auction.highestBid = msg.value;
+        auction.highestBid = uint64(msg.value);
 
         emit NewBid(auctionId, msg.sender, msg.value);
     }
 
     function claim(uint256 auctionId) external {
-        Auction storage auction = auctions[auctionId];
+        Auction storage auction = auctions[uint32(auctionId)];
 
         if (block.timestamp < auction.endTime) {
             revert AuctionNotEnded();
@@ -169,7 +168,7 @@ contract HarvestMarket is Ownable {
             revert AuctionClaimed();
         }
 
-        auctions[auctionId].claimed = true;
+        auctions[uint32(auctionId)].claimed = true;
 
         IERCBase tokenContract = IERCBase(auction.tokenAddress);
 
@@ -184,10 +183,10 @@ contract HarvestMarket is Ownable {
         emit Claimed(auctionId, msg.sender);
     }
 
-    function withdraw(uint256[] memory auctionIds) external onlyOwner {
+    function withdraw(uint32[] memory auctionIds) external onlyOwner {
         uint256 totalAmount;
 
-        for (uint256 i; i < auctionIds.length;) {
+        for (uint32 i; i < auctionIds.length;) {
             Auction storage auction = auctions[auctionIds[i]];
 
             if (auction.withdrawn) {
@@ -218,19 +217,19 @@ contract HarvestMarket is Ownable {
         bidTicket = IBidTicket(bidTicket_);
     }
 
-    function setBidTicketTokenId(uint256 bidTicketTokenId_) external onlyOwner {
+    function setBidTicketTokenId(uint8 bidTicketTokenId_) external onlyOwner {
         bidTicketTokenId = bidTicketTokenId_;
     }
 
-    function setMaxTokens(uint256 maxTokens_) external onlyOwner {
+    function setMaxTokens(uint8 maxTokens_) external onlyOwner {
         maxTokens = maxTokens_;
     }
 
-    function setMinStartPrice(uint256 minStartPrice_) external onlyOwner {
+    function setMinStartPrice(uint64 minStartPrice_) external onlyOwner {
         minStartPrice = minStartPrice_;
     }
 
-    function setMinBidIncrement(uint256 minBidIncrement_) external onlyOwner {
+    function setMinBidIncrement(uint64 minBidIncrement_) external onlyOwner {
         minBidIncrement = minBidIncrement_;
     }
 
@@ -249,7 +248,7 @@ contract HarvestMarket is Ownable {
     function _validateERC721Tokens(address tokenAddress, uint256[] calldata tokenIds) internal {
         IERC721 erc721Contract = IERC721(tokenAddress);
 
-        for (uint256 i; i < tokenIds.length;) {
+        for (uint8 i; i < tokenIds.length;) {
             if (erc721Tokens[tokenAddress][tokenIds[i]]) {
                 revert TokenAlreadyInAuction();
             }
@@ -263,7 +262,7 @@ contract HarvestMarket is Ownable {
             }
         }
 
-        for (uint256 i; i < tokenIds.length;) {
+        for (uint8 i; i < tokenIds.length;) {
             erc721Tokens[tokenAddress][tokenIds[i]] = true;
 
             unchecked {
@@ -277,7 +276,7 @@ contract HarvestMarket is Ownable {
     {
         IERC1155 erc1155Contract = IERC1155(tokenAddress);
 
-        for (uint256 i; i < tokenIds.length;) {
+        for (uint8 i; i < tokenIds.length;) {
             uint256 totalNeeded = erc1155Tokens[tokenAddress][tokenIds[i]] + amounts[i];
             uint256 balance = erc1155Contract.balanceOf(theBarn, tokenIds[i]);
 
@@ -298,10 +297,6 @@ contract HarvestMarket is Ownable {
 
         while (true) {
             uint256 currentTokenId = auction.tokenIds[i];
-            uint256 nextTokenId = auction.tokenIds[i + 1];
-
-            console.log("currentTokenId: %s", currentTokenId);
-            console.log("nextTokenId: %s", nextTokenId);
 
             if (zeroInSet && currentTokenId == 0) {
                 break;
