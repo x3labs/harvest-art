@@ -51,41 +51,41 @@ contract BidTicketTest is Test {
         bidTicket.setMarketContract(address(mockMarket));
     }
 
-    function testMintByOwner() public {
+    function test_MintByOwner() public {
         bidTicket.mint(user1, 1, 100, "");
         assertEq(bidTicket.balanceOf(user1, 1), 100, "User1 should have 100 BidTickets");
     }
 
-    function testMintByHarvestContract() public {
+    function test_MintByHarvestContract() public {
         vm.startPrank(address(mockHarvest));
         mockHarvest.mockMint(user1, 1, 100, "");
         assertEq(bidTicket.balanceOf(user1, 1), 100, "User1 should have 100 BidTickets");
     }
 
-    function testFailMintByOther() public {
+    function testFail_MintByOther() public {
         vm.prank(user1);
         bidTicket.mint(user1, 1, 100, "");
     }
 
-    function testBurnByOwner() public {
+    function test_BurnByOwner() public {
         bidTicket.mint(user1, 1, 100, "");
         bidTicket.burn(user1, 1, 50);
         assertEq(bidTicket.balanceOf(user1, 1), 50, "User1 should have 50 BidTickets after burning");
     }
 
-    function testBurnByMarketContract() public {
+    function test_BurnByMarketContract() public {
         bidTicket.mint(user1, 1, 100, "");
         mockMarket.mockBurn(user1, 1, 50);
         assertEq(bidTicket.balanceOf(user1, 1), 50, "User1 should have 50 BidTickets after burning");
     }
 
-    function testFailBurnByOther() public {
+    function testFail_BurnByOther() public {
         bidTicket.mint(user1, 1, 100, "");
         vm.startPrank(user1);
         bidTicket.burn(user1, 1, 50);
     }
 
-    function testSetURI() public {
+    function test_SetURI() public {
         string memory newURI = "https://newuri.example.com/api/token/{id}.json";
         bidTicket.setURI(1, newURI);
         assertEq(bidTicket.uri(1), newURI, "Token URI should be updated");

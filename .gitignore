@@ -15,6 +15,7 @@ docs/
 
 # Libraries
 lib/
+!test/lib
 
 # Coverage
 coverage/

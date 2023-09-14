@@ -6,8 +6,8 @@ import "forge-std/console.sol";
 import "../src/HarvestArt.sol";
 import "../src/IERCBase.sol";
 import "../src/BidTicket.sol";
-import "../test/Mock721.sol";
-import "../test/Mock1155.sol";
+import "./lib/Mock721.sol";
+import "./lib/Mock1155.sol";
 
 contract HarvestArtTest is Test {
     HarvestArt public harvestArt;
@@ -46,7 +46,7 @@ contract HarvestArtTest is Test {
         vm.deal(user2, 1 ether);
     }
 
-    function testFailBatchTransferNoBarnSet() public {
+    function testFail_BatchTransferNoBarnSet() public {
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
@@ -58,7 +58,7 @@ contract HarvestArtTest is Test {
         harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function testFailBatchTransferEmptyTokenContracts() public {
+    function testFail_BatchTransferEmptyTokenContracts() public {
         address[] memory tokenContracts = new address[](0);
         uint256[] memory tokenIds = new uint256[](0);
         uint256[] memory counts = new uint256[](0);
@@ -66,7 +66,7 @@ contract HarvestArtTest is Test {
         harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function testFailBatchTransferMismatchedLengths() public {
+    function testFail_BatchTransferMismatchedLengths() public {
         address[] memory tokenContracts = new address[](2);
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
@@ -74,7 +74,7 @@ contract HarvestArtTest is Test {
         harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function testFailBatchTransferInvalidTokenCount() public {
+    function testFail_BatchTransferInvalidTokenCount() public {
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
@@ -83,7 +83,7 @@ contract HarvestArtTest is Test {
         harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function testFailBatchTransferExceedMaxTokensPerTx() public {
+    function testFail_BatchTransferExceedMaxTokensPerTx() public {
         address[] memory tokenContracts = new address[](101);
         uint256[] memory tokenIds = new uint256[](101);
         uint256[] memory counts = new uint256[](101);
@@ -91,7 +91,7 @@ contract HarvestArtTest is Test {
         harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function testBatchTransferERC721() public {
+    function test_BatchTransferERC721() public {
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
@@ -107,7 +107,7 @@ contract HarvestArtTest is Test {
         harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function testBatchTransferERC1155() public {
+    function test_BatchTransferERC1155() public {
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
@@ -123,36 +123,36 @@ contract HarvestArtTest is Test {
         harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function testWithdrawBalance() public {
+    function test_WithdrawBalance() public {
         harvestArt.withdrawBalance();
     }
 
-    function testFailWithdrawBalanceByNonOwner() public {
+    function testFail_WithdrawBalanceByNonOwner() public {
         vm.prank(user1);
         harvestArt.withdrawBalance();
     }
 
-    function testSetPriceByContract() public {
+    function test_SetPriceByContract() public {
         harvestArt.setPriceByContract(vm.addr(69), 1 ether);
     }
 
-    function testSetDefaultPrice() public {
+    function test_SetDefaultPrice() public {
         harvestArt.setDefaultPrice(1 gwei);
     }
 
-    function testSetBidTicketAddress() public {
+    function test_SetBidTicketAddress() public {
         harvestArt.setBidTicketAddress(address(bidTicket));
     }
 
-    function testSetBidTicketTokenId() public {
+    function test_SetBidTicketTokenId() public {
         harvestArt.setBidTicketTokenId(1);
     }
 
-    function testSetBarn() public {
+    function test_SetBarn() public {
         harvestArt.setBarn(vm.addr(420));
     }
 
-    function testSetMaxTokensPerTx() public {
+    function test_SetMaxTokensPerTx() public {
         harvestArt.setMaxTokensPerTx(1000000);
     }
 }
