@@ -4,3 +4,9 @@ out = "out"
 libs = ["lib"]
 gas_reports = ["*"]
 gas_reports_ignore = ["Mock721", "Mock1155", "MockHarvestContract", "MockMarketContract", "HarvestArtTest", "HarvestMarketTest"]
+
+[rpc_endpoints]
+sepolia = "${SEPOLIA_RPC_URL}"
+
+[etherscan]
+sepolia = { key = "${ETHERSCAN_API_KEY}" }

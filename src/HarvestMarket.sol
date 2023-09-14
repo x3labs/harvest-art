@@ -18,9 +18,6 @@ import "solady/src/auth/Ownable.sol";
 import "../src/IBidTicket.sol";
 import "../src/IERCBase.sol";
 
-bytes4 constant ERC721_INTERFACE = 0x80ac58cd;
-bytes4 constant ERC1155_INTERFACE = 0xd9b67a26;
-
 struct Auction {
     address tokenAddress;
     address highestBidder;
@@ -34,7 +31,11 @@ struct Auction {
 }
 
 contract HarvestMarket is Ownable {
+    bytes4 public constant ERC721_INTERFACE = 0x80ac58cd;
+    bytes4 public constant ERC1155_INTERFACE = 0xd9b67a26;
+
     IBidTicket public bidTicket;
+
     address public theBarn;
     uint256 public bidTicketTokenId = 1;
     uint256 public bidTicketCostStart = 5;

@@ -18,11 +18,12 @@ import "solady/src/auth/Ownable.sol";
 import "../src/IERCBase.sol";
 import "../src/IBidTicket.sol";
 
-bytes4 constant ERC721_INTERFACE = 0x80ac58cd;
-bytes4 constant ERC1155_INTERFACE = 0xd9b67a26;
-
 contract HarvestArt is Ownable {
+    bytes4 public constant ERC721_INTERFACE = 0x80ac58cd;
+    bytes4 public constant ERC1155_INTERFACE = 0xd9b67a26;
+
     IBidTicket public bidTicket;
+
     address public theBarn;
     uint256 public defaultPrice = 1 gwei;
     uint256 public maxTokensPerTx = 100;
