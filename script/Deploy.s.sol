@@ -10,16 +10,15 @@ contract DeployScript is Script {
     function setUp() public {}
 
     function run() external {
-        if (vm.envUint("PRIVATE_KEY") == 0) {
-            return;
-        }
-
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
         BidTicket bidTicket = new BidTicket();
         HarvestArt harvestArt = new HarvestArt(address(bidTicket));
         HarvestMarket harvestMarket = new HarvestMarket(vm.envAddress("THE_BARN_ADDRESS"), address(bidTicket));
+
+        bidTicket.setHarvestContract(address(harvestArt));
+        bidTicket.setMarketContract(address(harvestMarket));
 
         vm.stopBroadcast();
     }
