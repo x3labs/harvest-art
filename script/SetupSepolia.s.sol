@@ -10,12 +10,13 @@ contract SetupSepoliaScript is Script {
     function setUp() public {}
 
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        vm.startBroadcast(deployerPrivateKey);
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
         BidTicket bidTicket = BidTicket(vm.envAddress("ADDRESS_BID_TICKET"));
         Harvest harvest = Harvest(payable(vm.envAddress("ADDRESS_HARVEST")));
         Market market = Market(vm.envAddress("ADDRESS_MARKET"));
+
+        vm.startBroadcast(deployerPrivateKey);
 
         bidTicket.setHarvestContract(address(harvest));
         bidTicket.setMarketContract(address(market));
