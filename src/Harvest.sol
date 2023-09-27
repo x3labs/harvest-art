@@ -18,7 +18,7 @@ import "solady/src/auth/Ownable.sol";
 import "../src/IERCBase.sol";
 import "../src/IBidTicket.sol";
 
-contract HarvestArt is Ownable {
+contract Harvest is Ownable {
     bytes4 public constant ERC721_INTERFACE = 0x80ac58cd;
     bytes4 public constant ERC1155_INTERFACE = 0xd9b67a26;
 

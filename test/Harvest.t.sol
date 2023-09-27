@@ -3,14 +3,14 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import "../src/HarvestArt.sol";
+import "../src/Harvest.sol";
 import "../src/IERCBase.sol";
 import "../src/BidTicket.sol";
 import "./lib/Mock721.sol";
 import "./lib/Mock1155.sol";
 
-contract HarvestArtTest is Test {
-    HarvestArt public harvestArt;
+contract HarvestTest is Test {
+    Harvest public harvest;
     IERCBase public iercBase;
     BidTicket public bidTicket;
     Mock721 public mock721;
@@ -25,8 +25,8 @@ contract HarvestArtTest is Test {
 
     function setUp() public {
         bidTicket = new BidTicket();
-        harvestArt = new HarvestArt(address(bidTicket));
-        bidTicket.setHarvestContract(address(harvestArt));
+        harvest = new Harvest(address(bidTicket));
+        bidTicket.setHarvestContract(address(harvest));
 
         mock721 = new Mock721();
         mock1155 = new Mock1155();
@@ -41,7 +41,7 @@ contract HarvestArtTest is Test {
         mock1155.mint(user1, 1, 10, "");
         mock1155.mint(user2, 1, 10, "");
 
-        vm.deal(address(harvestArt), 10 gwei);
+        vm.deal(address(harvest), 10 gwei);
         vm.deal(user1, 1 ether);
         vm.deal(user2, 1 ether);
     }
@@ -55,7 +55,7 @@ contract HarvestArtTest is Test {
         tokenIds[0] = 1;
         counts[0] = 1;
 
-        harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
     function testFail_BatchTransferEmptyTokenContracts() public {
@@ -63,7 +63,7 @@ contract HarvestArtTest is Test {
         uint256[] memory tokenIds = new uint256[](0);
         uint256[] memory counts = new uint256[](0);
 
-        harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
     function testFail_BatchTransferMismatchedLengths() public {
@@ -71,7 +71,7 @@ contract HarvestArtTest is Test {
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
 
-        harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
     function testFail_BatchTransferInvalidTokenCount() public {
@@ -80,7 +80,7 @@ contract HarvestArtTest is Test {
         uint256[] memory counts = new uint256[](1);
         counts[0] = 0;
 
-        harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
     function testFail_BatchTransferExceedMaxTokensPerTx() public {
@@ -88,7 +88,7 @@ contract HarvestArtTest is Test {
         uint256[] memory tokenIds = new uint256[](101);
         uint256[] memory counts = new uint256[](101);
 
-        harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
     function test_BatchTransferERC721() public {
@@ -100,11 +100,11 @@ contract HarvestArtTest is Test {
         tokenIds[0] = 1;
         counts[0] = 1;
 
-        harvestArt.setBarn(theBarn);
+        harvest.setBarn(theBarn);
 
         vm.startPrank(user1);
-        mock721.setApprovalForAll(address(harvestArt), true);
-        harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
+        mock721.setApprovalForAll(address(harvest), true);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
     function test_BatchTransferERC1155() public {
@@ -116,43 +116,43 @@ contract HarvestArtTest is Test {
         tokenIds[0] = 1;
         counts[0] = 1;
 
-        harvestArt.setBarn(theBarn);
+        harvest.setBarn(theBarn);
 
         vm.startPrank(user2);
-        mock1155.setApprovalForAll(address(harvestArt), true);
-        harvestArt.batchTransfer(tokenContracts, tokenIds, counts);
+        mock1155.setApprovalForAll(address(harvest), true);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
     function test_WithdrawBalance() public {
-        harvestArt.withdrawBalance();
+        harvest.withdrawBalance();
     }
 
     function testFail_WithdrawBalanceByNonOwner() public {
         vm.prank(user1);
-        harvestArt.withdrawBalance();
+        harvest.withdrawBalance();
     }
 
     function test_SetPriceByContract() public {
-        harvestArt.setPriceByContract(vm.addr(69), 1 ether);
+        harvest.setPriceByContract(vm.addr(69), 1 ether);
     }
 
     function test_SetDefaultPrice() public {
-        harvestArt.setDefaultPrice(1 gwei);
+        harvest.setDefaultPrice(1 gwei);
     }
 
     function test_SetBidTicketAddress() public {
-        harvestArt.setBidTicketAddress(address(bidTicket));
+        harvest.setBidTicketAddress(address(bidTicket));
     }
 
     function test_SetBidTicketTokenId() public {
-        harvestArt.setBidTicketTokenId(1);
+        harvest.setBidTicketTokenId(1);
     }
 
     function test_SetBarn() public {
-        harvestArt.setBarn(vm.addr(420));
+        harvest.setBarn(vm.addr(420));
     }
 
     function test_SetMaxTokensPerTx() public {
-        harvestArt.setMaxTokensPerTx(1000000);
+        harvest.setMaxTokensPerTx(1000000);
     }
 }

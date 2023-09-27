@@ -3,13 +3,13 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import "../src/HarvestMarket.sol";
+import "../src/Market.sol";
 import "../src/BidTicket.sol";
 import "./lib/Mock721.sol";
 import "./lib/Mock1155.sol";
 
-contract HarvestMarketTest is Test {
-    HarvestMarket public market;
+contract MarketTest is Test {
+    Market public market;
     BidTicket public bidTicket;
     Mock721 public mock721;
     Mock1155 public mock1155;
@@ -21,7 +21,7 @@ contract HarvestMarketTest is Test {
     uint256 public tokenCount = 10;
     uint256[] public tokenIds = [0, 1, 2];
     uint256[] public tokenIdAmounts = [10, 10, 10];
-    uint8[] public amounts = [1, 1, 1];
+    uint256[] public amounts = [1, 1, 1];
 
     receive() external payable {}
     fallback() external payable {}
@@ -29,7 +29,7 @@ contract HarvestMarketTest is Test {
     function setUp() public {
         theBarn = vm.addr(1);
         bidTicket = new BidTicket();
-        market = new HarvestMarket(theBarn, address(bidTicket));
+        market = new Market(theBarn, address(bidTicket));
         mock721 = new Mock721();
         mock1155 = new Mock1155();
 
@@ -116,7 +116,7 @@ contract HarvestMarketTest is Test {
         vm.startPrank(user1);
 
         uint256[] memory manyTokenIds = new uint256[](1001);
-        uint8[] memory manyAmounts = new uint8[](1001);
+        uint256[] memory manyAmounts = new uint256[](1001);
 
         try market.startAuction{value: 0.05 ether}(address(mock721), manyTokenIds, manyAmounts) {
             fail("Should not allow creating an auction with too many tokens");
@@ -385,6 +385,23 @@ contract HarvestMarketTest is Test {
     //
     // getters/setters
     //
+    function test_GetAuctionTokens() public {
+        vm.startPrank(user1);
+        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+
+        (address tokenAddress,,,,,,) = market.auctions(1);
+        assertEq(tokenAddress, address(mock721));
+
+        (uint256[] memory _tokenIds, uint256[] memory _amounts) = market.getAuctionTokens(1);
+
+        assertEq(_tokenIds[0], tokenIds[0]);
+        assertEq(_tokenIds[1], tokenIds[1]);
+        assertEq(_tokenIds[2], tokenIds[2]);
+        assertEq(_amounts[0], amounts[0]);
+        assertEq(_amounts[1], amounts[1]);
+        assertEq(_amounts[2], amounts[2]);
+    }
+
     function test_SetMinStartPrice() public {
         market.setMinStartPrice(0.01 ether);
 
