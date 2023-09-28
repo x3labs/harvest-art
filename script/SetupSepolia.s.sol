@@ -18,6 +18,9 @@ contract SetupSepoliaScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
+        harvest.setBarn(vm.envAddress("ADDRESS_BARN"));
+        harvest.setBidTicketAddress(address(bidTicket));
+
         bidTicket.setHarvestContract(address(harvest));
         bidTicket.setMarketContract(address(market));
 

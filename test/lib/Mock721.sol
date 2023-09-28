@@ -20,4 +20,8 @@ contract Mock721 is ERC721Enumerable {
             }
         }
     }
+
+    function tokenURI(uint256) public pure override returns (string memory) {
+        return "ipfs://QmZTAcMHVjY5oKdxhX5G5AnRPwgJ7v9MMBVhr7AnjAbE9G";
+    }
 }

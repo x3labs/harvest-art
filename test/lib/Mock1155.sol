@@ -19,4 +19,8 @@ contract Mock1155 is ERC1155("https://mock1155.com/{id}.json") {
     function burnBatch(address from, uint256[] calldata ids, uint256[] calldata amounts) external {
         _burnBatch(from, ids, amounts);
     }
+
+    function uri(uint256) public pure override returns (string memory) {
+        return "ipfs://QmVXfPHV4JunNXQdrZre5qVcEambVg4UmU5hawsoB3UEM8";
+    }
 }
