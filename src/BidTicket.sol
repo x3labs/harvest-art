@@ -14,7 +14,7 @@ pragma solidity ^0.8.20;
 
 import "ERC1155P/contracts/ERC1155P.sol";
 import "solady/src/auth/Ownable.sol";
-import "../src/IBidTicket.sol";
+import "./IBidTicket.sol";
 
 contract BidTicket is ERC1155P("BidTicket", "TCKT"), Ownable, IBidTicket {
     address public harvestContract;
@@ -23,15 +23,19 @@ contract BidTicket is ERC1155P("BidTicket", "TCKT"), Ownable, IBidTicket {
     error NotAuthorized();
 
     modifier onlyMinters() {
-        if (msg.sender != this.owner() && msg.sender != harvestContract) {
-            revert NotAuthorized();
+        if (msg.sender != harvestContract) {
+            if (msg.sender != owner()) {
+                revert NotAuthorized();
+            }
         }
         _;
     }
 
     modifier onlyBurners() {
-        if (msg.sender != this.owner() && msg.sender != marketContract) {
-            revert NotAuthorized();
+        if (msg.sender != marketContract) {
+            if (msg.sender != owner()) {
+                revert NotAuthorized();
+            }
         }
         _;
     }
@@ -44,15 +48,15 @@ contract BidTicket is ERC1155P("BidTicket", "TCKT"), Ownable, IBidTicket {
         _setURI(tokenId, tokenURI);
     }
 
-    function mint(address to, uint256 id, uint256 amount, bytes memory data) external virtual onlyMinters {
-        _mint(to, id, amount, data);
+    function mint(address to, uint256 id, uint256 amount) external virtual onlyMinters {
+        _mint(to, id, amount, "");
     }
 
-    function mintBatch(address to, uint256[] calldata ids, uint256[] calldata amounts, bytes memory data)
+    function mintBatch(address to, uint256[] calldata ids, uint256[] calldata amounts)
         public
         onlyMinters
     {
-        _mintBatch(to, ids, amounts, data);
+        _mintBatch(to, ids, amounts, "");
     }
 
     function burn(address from, uint256 id, uint256 amount) external onlyBurners {

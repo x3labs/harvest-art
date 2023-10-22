@@ -15,24 +15,24 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "solady/src/auth/Ownable.sol";
-import "../src/IBidTicket.sol";
-import "../src/IERCBase.sol";
+import "./IBidTicket.sol";
 
 struct Auction {
+    uint8 auctionType;
     address tokenAddress;
-    address highestBidder;
-    uint256 highestBid;
     uint64 endTime;
     uint8 tokenCount;
     bool claimed;
     bool withdrawn;
-    mapping(uint8 => uint256) tokenIds;
-    mapping(uint8 => uint256) amounts;
+    address highestBidder;
+    uint256 highestBid;
+    mapping(uint256 => uint256) tokenIds;
+    mapping(uint256 => uint256) amounts;
 }
 
 contract Market is Ownable {
-    bytes4 public constant ERC721_INTERFACE = 0x80ac58cd;
-    bytes4 public constant ERC1155_INTERFACE = 0xd9b67a26;
+    uint8 private constant AUCTION_TYPE_ERC721 = 0;
+    uint8 private constant AUCTION_TYPE_ERC1155 = 0;
 
     IBidTicket public bidTicket;
 
@@ -85,11 +85,10 @@ contract Market is Ownable {
      *
      * @param tokenAddress - The address of the token contract
      * @param tokenIds - The token ids to auction
-     * @param amounts - The amounts of each token to auction (ERC721: 1, ERC1155: n)
      *
      */
 
-    function startAuction(address tokenAddress, uint256[] calldata tokenIds, uint256[] calldata amounts)
+    function startAuctionERC721(address tokenAddress, uint256[] calldata tokenIds)
         external
         payable
     {
@@ -99,19 +98,69 @@ contract Market is Ownable {
 
         bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostStart);
 
-        _validateTokens(tokenAddress, tokenIds, amounts);
+        _validateAuctionTokensERC721(tokenAddress, tokenIds);
 
         Auction storage auction = auctions[nextAuctionId];
 
+        auction.auctionType = AUCTION_TYPE_ERC721;
         auction.tokenAddress = tokenAddress;
         auction.endTime = uint64(block.timestamp + auctionDuration);
         auction.highestBidder = msg.sender;
         auction.highestBid = msg.value;
         auction.tokenCount = uint8(tokenIds.length);
 
-        for (uint8 i; i < tokenIds.length;) {
-            auction.tokenIds[i] = tokenIds[i];
-            auction.amounts[i] = amounts[i];
+        mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
+        for (uint256 i; i < tokenIds.length;) {
+            tokenMap[i] = tokenIds[i];
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        unchecked {
+            ++nextAuctionId;
+        }
+
+        emit AuctionStarted(msg.sender, tokenAddress, tokenIds);
+    }
+
+    /**
+     *
+     * startAuction - Starts an auction for a given token
+     *
+     * @param tokenAddress - The address of the token contract
+     * @param tokenIds - The token ids to auction
+     * @param amounts - The amounts of each token to auction
+     *
+     */
+
+    function startAuctionERC1155(address tokenAddress, uint256[] calldata tokenIds, uint256[] calldata amounts)
+        external
+        payable
+    {
+        if (msg.value < minStartPrice) {
+            revert StartPriceTooLow();
+        }
+
+        bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostStart);
+
+        _validateAuctionTokensERC1155(tokenAddress, tokenIds, amounts);
+
+        Auction storage auction = auctions[nextAuctionId];
+
+        auction.auctionType = AUCTION_TYPE_ERC1155;
+        auction.tokenAddress = tokenAddress;
+        auction.endTime = uint64(block.timestamp + auctionDuration);
+        auction.highestBidder = msg.sender;
+        auction.highestBid = msg.value;
+        auction.tokenCount = uint8(tokenIds.length);
+
+        mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
+        mapping(uint256 => uint256) storage amountMap = auction.amounts;
+        for (uint256 i; i < tokenIds.length;) {
+            tokenMap[i] = tokenIds[i];
+            amountMap[i] = amounts[i];
 
             unchecked {
                 ++i;
@@ -185,16 +234,12 @@ contract Market is Ownable {
             revert AuctionClaimed();
         }
 
-        auctions[auctionId].claimed = true;
+        auction.claimed = true;
 
-        IERCBase tokenContract = IERCBase(auction.tokenAddress);
-
-        if (tokenContract.supportsInterface(ERC721_INTERFACE)) {
+        if (auction.auctionType == AUCTION_TYPE_ERC721) {
             _transferERC721s(auction);
-        } else if (tokenContract.supportsInterface(ERC1155_INTERFACE)) {
-            _transferERC1155s(auction);
         } else {
-            revert InvalidTokenAddress();
+            _transferERC1155s(auction);
         }
 
         emit Claimed(auctionId, msg.sender);
@@ -209,7 +254,7 @@ contract Market is Ownable {
      *
      */
 
-    function withdraw(uint256[] memory auctionIds) external onlyOwner {
+    function withdraw(uint256[] calldata auctionIds) external onlyOwner {
         uint256 totalAmount;
 
         for (uint256 i; i < auctionIds.length;) {
@@ -224,7 +269,7 @@ contract Market is Ownable {
             }
 
             totalAmount += auction.highestBid;
-            auctions[auctionIds[i]].withdrawn = true;
+            auction.withdrawn = true;
 
             unchecked {
                 ++i;
@@ -247,9 +292,14 @@ contract Market is Ownable {
         uint256[] memory tokenIds = new uint256[](auction.tokenCount);
         uint256[] memory amounts = new uint256[](auction.tokenCount);
 
-        for (uint8 i; i < auction.tokenCount;) {
+        uint256 tokenCount = auction.tokenCount;
+        for (uint256 i; i < tokenCount;) {
             tokenIds[i] = auction.tokenIds[i];
-            amounts[i] = auction.amounts[i];
+            if (auction.auctionType == AUCTION_TYPE_ERC721) {
+                amounts[i] = 1;
+            } else {
+                amounts[i] = auction.amounts[i];
+            }
 
             unchecked {
                 ++i;
@@ -293,42 +343,27 @@ contract Market is Ownable {
      *
      */
 
-    function _validateTokens(address tokenAddress, uint256[] calldata tokenIds, uint256[] calldata amounts) internal {
+    function _validateAuctionTokensERC721(address tokenAddress, uint256[] calldata tokenIds) internal {
         if (tokenIds.length == 0) {
             revert InvalidLengthOfTokenIds();
         }
 
-        if (tokenIds.length != amounts.length) {
-            revert InvalidLengthOfAmounts();
-        }
-
-        IERCBase tokenContract = IERCBase(tokenAddress);
-
-        if (tokenContract.supportsInterface(ERC721_INTERFACE)) {
-            _validateAuctionTokensERC721(tokenAddress, tokenIds);
-        } else if (tokenContract.supportsInterface(ERC1155_INTERFACE)) {
-            _validateAuctionTokensERC1155(tokenAddress, tokenIds, amounts);
-        } else {
-            revert InvalidTokenAddress();
-        }
-    }
-
-    function _validateAuctionTokensERC721(address tokenAddress, uint256[] calldata tokenIds) internal {
         IERC721 erc721Contract = IERC721(tokenAddress);
-        uint256 tokenId;
 
         if (tokenIds.length > maxTokens) {
             revert MaxTokensPerTxReached();
         }
 
-        for (uint256 i; i < tokenIds.length;) {
-            tokenId = tokenIds[i];
+        mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
 
-            if (auctionTokensERC721[tokenAddress][tokenId]) {
+        for (uint256 i; i < tokenIds.length;) {
+            uint256 tokenId = tokenIds[i];
+
+            if (auctionTokens[tokenId]) {
                 revert TokenAlreadyInAuction();
             }
 
-            auctionTokensERC721[tokenAddress][tokenId] = true;
+            auctionTokens[tokenId] = true;
 
             if (erc721Contract.ownerOf(tokenId) != theBarn) {
                 revert TokenNotOwned();
@@ -345,6 +380,13 @@ contract Market is Ownable {
         uint256[] calldata tokenIds,
         uint256[] calldata amounts
     ) internal {
+        if (tokenIds.length == 0) {
+            revert InvalidLengthOfTokenIds();
+        }
+        if (tokenIds.length != amounts.length) {
+            revert InvalidLengthOfAmounts();
+        }
+
         IERC1155 erc1155Contract = IERC1155(tokenAddress);
         uint256 totalTokens;
         uint256 totalNeeded;
@@ -352,44 +394,44 @@ contract Market is Ownable {
         uint256 tokenId;
         uint256 amount;
 
+        mapping(uint256 => uint256) storage auctionTokens = auctionTokensERC1155[tokenAddress];
+
         for (uint256 i; i < tokenIds.length;) {
             tokenId = tokenIds[i];
             amount = amounts[i];
 
             totalTokens += amount;
-            totalNeeded = auctionTokensERC1155[tokenAddress][tokenId] + amount;
+            totalNeeded = auctionTokens[tokenId] + amount;
             balance = erc1155Contract.balanceOf(theBarn, tokenId);
 
             if (totalNeeded > balance) {
                 revert NotEnoughTokensInSupply();
             }
 
-            if (totalTokens > maxTokens) {
-                revert MaxTokensPerTxReached();
-            }
-
             unchecked {
-                auctionTokensERC1155[tokenAddress][tokenId] += amount;
+                auctionTokens[tokenId] += amount;
                 ++i;
             }
+        }
+
+        if (totalTokens > maxTokens) {
+            revert MaxTokensPerTxReached();
         }
     }
 
     function _transferERC721s(Auction storage auction) internal {
-        IERC721 erc721Contract = IERC721(auction.tokenAddress);
-        uint256[] memory tokenIds = new uint256[](auction.tokenCount);
+        address tokenAddress = auction.tokenAddress;
+        address highestBidder = auction.highestBidder;
+        IERC721 erc721Contract = IERC721(tokenAddress);
 
-        for (uint8 i; i < auction.tokenCount;) {
-            tokenIds[i] = auction.tokenIds[i];
-            auctionTokensERC721[auction.tokenAddress][tokenIds[i]] = false;
+        mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
+        mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
 
-            unchecked {
-                ++i;
-            }
-        }
-
-        for (uint8 i; i < auction.tokenCount;) {
-            erc721Contract.transferFrom(theBarn, auction.highestBidder, tokenIds[i]);
+        uint256 tokenCount = auction.tokenCount;
+        for (uint256 i; i < tokenCount;) {
+            uint256 tokenId = tokenMap[i];
+            auctionTokens[tokenId] = false;
+            erc721Contract.transferFrom(theBarn, highestBidder, tokenId);
 
             unchecked {
                 ++i;
@@ -398,14 +440,23 @@ contract Market is Ownable {
     }
 
     function _transferERC1155s(Auction storage auction) internal {
-        IERC1155 erc1155Contract = IERC1155(auction.tokenAddress);
+        address tokenAddress = auction.tokenAddress;
+        IERC1155 erc1155Contract = IERC1155(tokenAddress);
         uint256[] memory tokenIds = new uint256[](auction.tokenCount);
         uint256[] memory amounts = new uint256[](auction.tokenCount);
 
-        for (uint8 i; i < auction.tokenCount;) {
-            tokenIds[i] = auction.tokenIds[i];
-            amounts[i] = auction.amounts[i];
-            auctionTokensERC1155[auction.tokenAddress][auction.tokenIds[i]] -= auction.amounts[i];
+        mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
+        mapping(uint256 => uint256) storage amountMap = auction.amounts;
+        mapping(uint256 => uint256) storage auctionTokens = auctionTokensERC1155[tokenAddress];
+
+        uint256 tokenCount = auction.tokenCount;
+        for (uint256 i; i < tokenCount;) {
+            uint256 tokenId = tokenMap[i];
+            uint256 amount = amountMap[i];
+
+            tokenIds[i] = tokenId;
+            amounts[i] = amount;
+            auctionTokens[tokenId] -= amount;
 
             unchecked {
                 ++i;

@@ -37,8 +37,8 @@ contract MarketTest is Test {
         user2 = vm.addr(3);
 
         bidTicket.setMarketContract(address(market));
-        bidTicket.mint(user1, 1, 100, "");
-        bidTicket.mint(user2, 1, 100, "");
+        bidTicket.mint(user1, 1, 100);
+        bidTicket.mint(user2, 1, 100);
 
         vm.deal(user1, 1 ether);
         vm.deal(user2, 1 ether);
@@ -61,12 +61,12 @@ contract MarketTest is Test {
         uint256 startBalance = user1.balance;
         assertEq(bidTicket.balanceOf(user1, 1), 100);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
         assertEq(user1.balance, startBalance - 0.05 ether, "Balance should decrease by 0.05 ether");
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 95);
 
-        (address tokenAddress, address highestBidder, uint256 highestBid,,,,) = market.auctions(1);
+        (,address tokenAddress,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(tokenAddress, address(mock721));
         assertEq(highestBidder, user1);
@@ -82,12 +82,12 @@ contract MarketTest is Test {
         uint256 startBalance = user1.balance;
         assertEq(bidTicket.balanceOf(user1, 1), 100);
 
-        market.startAuction{value: bidAmount}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: bidAmount}(address(mock721), tokenIds);
         assertEq(user1.balance, startBalance - bidAmount, "Balance should decrease by bid amount");
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 95);
 
-        (address tokenAddress, address highestBidder, uint256 highestBid,,,,) = market.auctions(1);
+        (,address tokenAddress,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(tokenAddress, address(mock721));
         assertEq(highestBidder, user1);
@@ -100,12 +100,12 @@ contract MarketTest is Test {
         uint256 startBalance = user1.balance;
         assertEq(bidTicket.balanceOf(user1, 1), 100);
 
-        market.startAuction{value: 0.05 ether}(address(mock1155), tokenIds, amounts);
+        market.startAuctionERC1155{value: 0.05 ether}(address(mock1155), tokenIds, amounts);
         assertEq(user1.balance, startBalance - 0.05 ether, "Balance should decrease by 0.05 ether");
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 95);
 
-        (address tokenAddress, address highestBidder, uint256 highestBid,,,,) = market.auctions(1);
+        (,address tokenAddress,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(tokenAddress, address(mock1155));
         assertEq(highestBidder, user1);
@@ -118,7 +118,7 @@ contract MarketTest is Test {
         uint256[] memory manyTokenIds = new uint256[](1001);
         uint256[] memory manyAmounts = new uint256[](1001);
 
-        try market.startAuction{value: 0.05 ether}(address(mock721), manyTokenIds, manyAmounts) {
+        try market.startAuctionERC721{value: 0.05 ether}(address(mock721), manyTokenIds) {
             fail("Should not allow creating an auction with too many tokens");
         } catch {}
 
@@ -131,7 +131,7 @@ contract MarketTest is Test {
 
         uint256 nextAuctionId = market.nextAuctionId();
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
         skip(60 * 60 * 24 * 7 + 1);
         market.claim(nextAuctionId);
 
@@ -139,14 +139,14 @@ contract MarketTest is Test {
         mock721.transferFrom(user1, theBarn, tokenIds[1]);
         mock721.transferFrom(user1, theBarn, tokenIds[2]);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
         assertEq(market.nextAuctionId(), nextAuctionId + 2, "nextAuctionId should be incremented");
     }
 
     function test_StartAuctionWithLowStartPrice() public {
         vm.startPrank(user1);
 
-        try market.startAuction{value: 0.04 ether}(address(mock721), tokenIds, amounts) {
+        try market.startAuctionERC721{value: 0.04 ether}(address(mock721), tokenIds) {
             fail("Should not allow creating an auction with a start price below the minimum");
         } catch {}
 
@@ -157,14 +157,14 @@ contract MarketTest is Test {
     function testFail_StartAuctionWithoutEnoughBidTickets() public {
         vm.startPrank(user1);
         bidTicket.burn(user1, 1, 100);
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
     }
 
     function testFail_StartAuctionWithOverlappingTokens() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
     }
 
     //
@@ -173,7 +173,7 @@ contract MarketTest is Test {
     function test_Bid() public {
         vm.startPrank(user1);
         assertEq(bidTicket.balanceOf(user1, 1), 100);
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
         assertEq(bidTicket.balanceOf(user1, 1), 95);
         vm.stopPrank();
 
@@ -182,7 +182,7 @@ contract MarketTest is Test {
         assertEq(bidTicket.balanceOf(user1, 1), 95);
         assertEq(bidTicket.balanceOf(user2, 1), 99);
 
-        (, address highestBidder, uint256 highestBid,,,,) = market.auctions(1);
+        (,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(highestBidder, user2, "Highest bidder should be this contract");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
@@ -192,12 +192,12 @@ contract MarketTest is Test {
         vm.startPrank(user1);
 
         assertEq(bidTicket.balanceOf(user1, 1), 100);
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
         assertEq(bidTicket.balanceOf(user1, 1), 95);
         market.bid{value: 0.06 ether}(1);
         assertEq(bidTicket.balanceOf(user1, 1), 94);
 
-        (, address highestBidder, uint256 highestBid,,,,) = market.auctions(1);
+        (,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(highestBidder, user1, "Highest bidder should be this contract");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
@@ -206,20 +206,20 @@ contract MarketTest is Test {
     function test_BidBelowMinimumIncrement() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         try market.bid{value: 0.055 ether}(1) {
             fail("Should not allow bids below the minimum increment");
         } catch {}
 
-        (,, uint256 highestBid,,,,) = market.auctions(1);
+        (,,,,,,, uint256 highestBid) = market.auctions(1);
         assertEq(highestBid, 0.05 ether, "Highest bid should remain 0.05 ether");
     }
 
     function test_BidRevertOnEqualBid() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
         uint256 auctionId = market.nextAuctionId() - 1;
 
         market.bid{value: 0.06 ether}(auctionId);
@@ -232,7 +232,7 @@ contract MarketTest is Test {
     function test_BidAfterAuctionEnded() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         skip(60 * 60 * 24 * 7 + 1);
 
@@ -240,7 +240,7 @@ contract MarketTest is Test {
             fail("Should not allow bids after the auction has ended");
         } catch {}
 
-        (,, uint256 highestBid,,,,) = market.auctions(1);
+        (,,,,,,, uint256 highestBid) = market.auctions(1);
         assertEq(highestBid, 0.05 ether, "Highest bid should remain 0.05 ether");
     }
 
@@ -250,14 +250,14 @@ contract MarketTest is Test {
         vm.assume(_bidB > _bidA && user1.balance >= _bidA && user2.balance >= _bidB);
 
         vm.prank(user1);
-        market.startAuction{value: _bidA}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: _bidA}(address(mock721), tokenIds);
 
         vm.prank(user2);
         market.bid{value: _bidB}(1);
         assertEq(bidTicket.balanceOf(user1, 1), 95);
         assertEq(bidTicket.balanceOf(user2, 1), 99);
 
-        (, address highestBidder, uint256 highestBid,,,,) = market.auctions(1);
+        (,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(highestBidder, user2, "Highest bidder should be this contract");
         assertEq(highestBid, _bidB, "Highest bid should be 0.06 ether");
@@ -270,13 +270,13 @@ contract MarketTest is Test {
         vm.startPrank(user1);
 
         uint256 auctionId = market.nextAuctionId();
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
         assertEq(user1.balance, 0.95 ether, "user1 should have 0.95 after starting the auction");
 
         vm.startPrank(user2);
         market.bid{value: 0.06 ether}(auctionId);
 
-        (, address highestBidder, uint256 highestBid,,,,) = market.auctions(auctionId);
+        (,,,,,, address highestBidder, uint256 highestBid) = market.auctions(auctionId);
 
         assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
         assertEq(user2.balance, 0.94 ether, "user2 should have 0.95 ether");
@@ -294,20 +294,20 @@ contract MarketTest is Test {
     function test_ClaimBeforeAuctionEnded() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         try market.claim(1) {
             fail("Should not allow claiming before the auction has ended");
         } catch {}
 
-        (, address highestBidder,,,,,) = market.auctions(1);
+        (,,,,,, address highestBidder,) = market.auctions(1);
         assertEq(highestBidder, user1, "Highest bidder should remain unchanged");
     }
 
     function test_ClaimByNonHighestBidder() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         skip(60 * 60 * 24 * 7 + 1);
 
@@ -319,7 +319,7 @@ contract MarketTest is Test {
 
         vm.stopPrank();
 
-        (, address highestBidder,,,,,) = market.auctions(1);
+        (,,,,,, address highestBidder,) = market.auctions(1);
         assertEq(highestBidder, user1, "Highest bidder should remain unchanged");
     }
 
@@ -329,7 +329,7 @@ contract MarketTest is Test {
     function test_WithdrawSuccessful() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         uint256 auctionId = market.nextAuctionId() - 1;
         uint256[] memory auctionIds = new uint256[](1);
@@ -340,14 +340,14 @@ contract MarketTest is Test {
         vm.startPrank(address(this));
         market.withdraw(auctionIds);
 
-        (,,,,,, bool withdrawn) = market.auctions(auctionId);
+        (,,,,, bool withdrawn,,) = market.auctions(auctionId);
         assertTrue(withdrawn, "Auction should be marked as withdrawn");
     }
 
     function test_WithdrawRevertOnActiveAuction() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         uint256 auctionId = market.nextAuctionId() - 1;
         uint256[] memory auctionIds = new uint256[](1);
@@ -366,7 +366,7 @@ contract MarketTest is Test {
     function test_WithdrawRevertOnAlreadyWithdrawnAuction() public {
         vm.startPrank(user1);
 
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         uint256 auctionId = market.nextAuctionId() - 1;
         uint256[] memory auctionIds = new uint256[](1);
@@ -387,9 +387,9 @@ contract MarketTest is Test {
     //
     function test_GetAuctionTokens() public {
         vm.startPrank(user1);
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
-        (address tokenAddress,,,,,,) = market.auctions(1);
+        (,address tokenAddress,,,,,,) = market.auctions(1);
         assertEq(tokenAddress, address(mock721));
 
         (uint256[] memory _tokenIds, uint256[] memory _amounts) = market.getAuctionTokens(1);
@@ -406,14 +406,14 @@ contract MarketTest is Test {
         market.setMinStartPrice(0.01 ether);
 
         vm.startPrank(user1);
-        market.startAuction{value: 0.01 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.01 ether}(address(mock721), tokenIds);
     }
 
     function test_SetMinBidIncrement() public {
         market.setMinBidIncrement(0.02 ether);
 
         vm.startPrank(user1);
-        market.startAuction{value: 0.05 ether}(address(mock721), tokenIds, amounts);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         market.bid{value: 0.07 ether}(1);
 

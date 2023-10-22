@@ -4,6 +4,8 @@ out = "out"
 libs = ["lib"]
 gas_reports = ["*"]
 gas_reports_ignore = ["Mock721", "Mock1155", "MockHarvestContract", "MockMarketContract", "HarvestTest", "MarketTest"]
+via_ir = true
+evm_version = 'paris'
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"

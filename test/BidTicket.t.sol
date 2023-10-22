@@ -12,8 +12,8 @@ contract MockHarvestContract {
         bidTicket = BidTicket(_bidTicketAddress);
     }
 
-    function mockMint(address account, uint256 id, uint256 amount, bytes memory data) external {
-        bidTicket.mint(account, id, amount, data);
+    function mockMint(address account, uint256 id, uint256 amount) external {
+        bidTicket.mint(account, id, amount);
     }
 }
 
@@ -52,35 +52,35 @@ contract BidTicketTest is Test {
     }
 
     function test_MintByOwner() public {
-        bidTicket.mint(user1, 1, 100, "");
+        bidTicket.mint(user1, 1, 100);
         assertEq(bidTicket.balanceOf(user1, 1), 100, "User1 should have 100 BidTickets");
     }
 
     function test_MintByHarvestContract() public {
         vm.startPrank(address(mockHarvest));
-        mockHarvest.mockMint(user1, 1, 100, "");
+        mockHarvest.mockMint(user1, 1, 100);
         assertEq(bidTicket.balanceOf(user1, 1), 100, "User1 should have 100 BidTickets");
     }
 
     function testFail_MintByOther() public {
         vm.prank(user1);
-        bidTicket.mint(user1, 1, 100, "");
+        bidTicket.mint(user1, 1, 100);
     }
 
     function test_BurnByOwner() public {
-        bidTicket.mint(user1, 1, 100, "");
+        bidTicket.mint(user1, 1, 100);
         bidTicket.burn(user1, 1, 50);
         assertEq(bidTicket.balanceOf(user1, 1), 50, "User1 should have 50 BidTickets after burning");
     }
 
     function test_BurnByMarketContract() public {
-        bidTicket.mint(user1, 1, 100, "");
+        bidTicket.mint(user1, 1, 100);
         mockMarket.mockBurn(user1, 1, 50);
         assertEq(bidTicket.balanceOf(user1, 1), 50, "User1 should have 50 BidTickets after burning");
     }
 
     function testFail_BurnByOther() public {
-        bidTicket.mint(user1, 1, 100, "");
+        bidTicket.mint(user1, 1, 100);
         vm.startPrank(user1);
         bidTicket.burn(user1, 1, 50);
     }

@@ -15,13 +15,10 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "solady/src/auth/Ownable.sol";
-import "../src/IERCBase.sol";
-import "../src/IBidTicket.sol";
+import "./IBidTicket.sol";
 
 contract Harvest is Ownable {
-    bytes4 public constant ERC721_INTERFACE = 0x80ac58cd;
-    bytes4 public constant ERC1155_INTERFACE = 0xd9b67a26;
-
+    
     IBidTicket public bidTicket;
 
     address public theBarn;
@@ -34,9 +31,7 @@ contract Harvest is Ownable {
     error BarnNotSet();
     error InvalidTokenContractLength();
     error InvalidParamsLength();
-    error InvalidTokenCount();
     error MaxTokensPerTxReached();
-    error TokenNotYetApproved();
     error TransferFailed();
 
     event BatchTransfer(address indexed user, uint256 indexed totalTokens);
@@ -61,48 +56,36 @@ contract Harvest is Ownable {
             revert InvalidParamsLength();
         }
 
-        IERCBase tokenContract;
         uint256 totalTokens;
         uint256 totalPrice;
+        uint256 _defaultPrice = defaultPrice;
 
         for (uint256 i; i < tokenContracts.length;) {
-            if (counts[i] == 0) revert InvalidTokenCount();
+            address tokenContract = tokenContracts[i];
 
-            tokenContract = IERCBase(tokenContracts[i]);
-
-            if (tokenContract.supportsInterface(ERC721_INTERFACE)) {
+            if (counts[i] == 0) {
                 unchecked {
-                    totalTokens++;
+                    ++totalTokens;
                 }
 
-                totalPrice += _getPrice(tokenContracts[i]);
-            } else if (tokenContract.supportsInterface(ERC1155_INTERFACE)) {
+                totalPrice += _getPrice(_defaultPrice, tokenContract);
+                IERC721(tokenContract).transferFrom(msg.sender, theBarn, tokenIds[i]);
+            } else {
                 totalTokens += counts[i];
-                totalPrice += _getPrice(tokenContracts[i]) * counts[i];
-            } else {
-                continue;
-            }
-
-            if (totalTokens > maxTokensPerTx) {
-                revert MaxTokensPerTxReached();
-            }
-
-            if (!tokenContract.isApprovedForAll(msg.sender, address(this))) {
-                revert TokenNotYetApproved();
-            }
-
-            if (tokenContract.supportsInterface(ERC721_INTERFACE)) {
-                IERC721(tokenContracts[i]).transferFrom(msg.sender, theBarn, tokenIds[i]);
-            } else {
-                IERC1155(tokenContracts[i]).safeTransferFrom(msg.sender, theBarn, tokenIds[i], counts[i], "");
+                totalPrice += _getPrice(_defaultPrice, tokenContract) * counts[i];
+                IERC1155(tokenContract).safeTransferFrom(msg.sender, theBarn, tokenIds[i], counts[i], "");
             }
 
             unchecked {
-                i++;
+                ++i;
             }
         }
 
-        bidTicket.mint(msg.sender, bidTicketTokenId, totalTokens, "");
+        if (totalTokens > maxTokensPerTx) {
+            revert MaxTokensPerTxReached();
+        }
+
+        bidTicket.mint(msg.sender, bidTicketTokenId, totalTokens);
 
         (bool sent,) = payable(msg.sender).call{value: totalPrice}("");
         if (!sent) revert TransferFailed();
@@ -110,11 +93,11 @@ contract Harvest is Ownable {
         emit BatchTransfer(msg.sender, totalTokens);
     }
 
-    function _getPrice(address contractAddress) internal view returns (uint256) {
+    function _getPrice(uint256 _defaultPrice, address contractAddress) internal view returns (uint256) {
         if (_contractPrices[contractAddress] > 0) {
             return _contractPrices[contractAddress];
         } else {
-            return defaultPrice;
+            return _defaultPrice;
         }
     }
 

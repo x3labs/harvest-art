@@ -4,14 +4,12 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "../src/Harvest.sol";
-import "../src/IERCBase.sol";
 import "../src/BidTicket.sol";
 import "./lib/Mock721.sol";
 import "./lib/Mock1155.sol";
 
 contract HarvestTest is Test {
     Harvest public harvest;
-    IERCBase public iercBase;
     BidTicket public bidTicket;
     Mock721 public mock721;
     Mock1155 public mock1155;
@@ -98,7 +96,31 @@ contract HarvestTest is Test {
 
         tokenContracts[0] = address(mock721);
         tokenIds[0] = 1;
-        counts[0] = 1;
+        counts[0] = 0;
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock721.setApprovalForAll(address(harvest), true);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
+    }
+
+    function test_BatchTransferMultipleERC721() public {
+        address[] memory tokenContracts = new address[](3);
+        uint256[] memory tokenIds = new uint256[](3);
+        uint256[] memory counts = new uint256[](3);
+
+        tokenContracts[0] = address(mock721);
+        tokenIds[0] = 1;
+        counts[0] = 0;
+
+        tokenContracts[1] = address(mock721);
+        tokenIds[1] = 2;
+        counts[1] = 0;
+
+        tokenContracts[2] = address(mock721);
+        tokenIds[2] = 3;
+        counts[2] = 0;
 
         harvest.setBarn(theBarn);
 
@@ -115,6 +137,30 @@ contract HarvestTest is Test {
         tokenContracts[0] = address(mock1155);
         tokenIds[0] = 1;
         counts[0] = 1;
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user2);
+        mock1155.setApprovalForAll(address(harvest), true);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
+    }
+
+    function test_BatchTransferMultipleERC1155() public {
+        address[] memory tokenContracts = new address[](3);
+        uint256[] memory tokenIds = new uint256[](3);
+        uint256[] memory counts = new uint256[](3);
+
+        tokenContracts[0] = address(mock1155);
+        tokenIds[0] = 1;
+        counts[0] = 1;
+
+        tokenContracts[1] = address(mock1155);
+        tokenIds[1] = 1;
+        counts[1] = 1;
+
+        tokenContracts[2] = address(mock1155);
+        tokenIds[2] = 1;
+        counts[2] = 1;
 
         harvest.setBarn(theBarn);
 

@@ -24,8 +24,8 @@ contract SetupSepoliaScript is Script {
         bidTicket.setHarvestContract(address(harvest));
         bidTicket.setMarketContract(address(market));
 
-        bidTicket.mint(vm.envAddress("ADDRESS_TESTNET_WALLET_A"), 1, 100, "");
-        bidTicket.mint(vm.envAddress("ADDRESS_TESTNET_WALLET_B"), 1, 100, "");
+        bidTicket.mint(vm.envAddress("ADDRESS_TESTNET_WALLET_A"), 1, 100);
+        bidTicket.mint(vm.envAddress("ADDRESS_TESTNET_WALLET_B"), 1, 100);
 
         market.setMinStartPrice(0.001 ether);
         market.setMinBidIncrement(0.001 ether);
