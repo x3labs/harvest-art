@@ -32,7 +32,7 @@ struct Auction {
 
 contract Market is Ownable {
     uint8 private constant AUCTION_TYPE_ERC721 = 0;
-    uint8 private constant AUCTION_TYPE_ERC1155 = 0;
+    uint8 private constant AUCTION_TYPE_ERC1155 = 1;
 
     IBidTicket public bidTicket;
 
