@@ -66,7 +66,7 @@ contract MarketTest is Test {
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 95);
 
-        (,address tokenAddress,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (, address tokenAddress,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(tokenAddress, address(mock721));
         assertEq(highestBidder, user1);
@@ -87,7 +87,7 @@ contract MarketTest is Test {
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 95);
 
-        (,address tokenAddress,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (, address tokenAddress,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(tokenAddress, address(mock721));
         assertEq(highestBidder, user1);
@@ -105,7 +105,7 @@ contract MarketTest is Test {
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 95);
 
-        (,address tokenAddress,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (, address tokenAddress,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(tokenAddress, address(mock1155));
         assertEq(highestBidder, user1);
@@ -116,7 +116,6 @@ contract MarketTest is Test {
         vm.startPrank(user1);
 
         uint256[] memory manyTokenIds = new uint256[](1001);
-        uint256[] memory manyAmounts = new uint256[](1001);
 
         try market.startAuctionERC721{value: 0.05 ether}(address(mock721), manyTokenIds) {
             fail("Should not allow creating an auction with too many tokens");
@@ -182,7 +181,7 @@ contract MarketTest is Test {
         assertEq(bidTicket.balanceOf(user1, 1), 95);
         assertEq(bidTicket.balanceOf(user2, 1), 99);
 
-        (,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (,,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(highestBidder, user2, "Highest bidder should be this contract");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
@@ -197,7 +196,7 @@ contract MarketTest is Test {
         market.bid{value: 0.06 ether}(1);
         assertEq(bidTicket.balanceOf(user1, 1), 94);
 
-        (,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (,,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(highestBidder, user1, "Highest bidder should be this contract");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
@@ -212,7 +211,7 @@ contract MarketTest is Test {
             fail("Should not allow bids below the minimum increment");
         } catch {}
 
-        (,,,,,,, uint256 highestBid) = market.auctions(1);
+        (,,,,,,,,, uint256 highestBid) = market.auctions(1);
         assertEq(highestBid, 0.05 ether, "Highest bid should remain 0.05 ether");
     }
 
@@ -240,7 +239,7 @@ contract MarketTest is Test {
             fail("Should not allow bids after the auction has ended");
         } catch {}
 
-        (,,,,,,, uint256 highestBid) = market.auctions(1);
+        (,,,,,,,,, uint256 highestBid) = market.auctions(1);
         assertEq(highestBid, 0.05 ether, "Highest bid should remain 0.05 ether");
     }
 
@@ -257,7 +256,7 @@ contract MarketTest is Test {
         assertEq(bidTicket.balanceOf(user1, 1), 95);
         assertEq(bidTicket.balanceOf(user2, 1), 99);
 
-        (,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (,,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(highestBidder, user2, "Highest bidder should be this contract");
         assertEq(highestBid, _bidB, "Highest bid should be 0.06 ether");
@@ -276,7 +275,7 @@ contract MarketTest is Test {
         vm.startPrank(user2);
         market.bid{value: 0.06 ether}(auctionId);
 
-        (,,,,,, address highestBidder, uint256 highestBid) = market.auctions(auctionId);
+        (,,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(auctionId);
 
         assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
         assertEq(user2.balance, 0.94 ether, "user2 should have 0.95 ether");
@@ -300,7 +299,7 @@ contract MarketTest is Test {
             fail("Should not allow claiming before the auction has ended");
         } catch {}
 
-        (,,,,,, address highestBidder,) = market.auctions(1);
+        (,,,,,,,, address highestBidder,) = market.auctions(1);
         assertEq(highestBidder, user1, "Highest bidder should remain unchanged");
     }
 
@@ -319,8 +318,22 @@ contract MarketTest is Test {
 
         vm.stopPrank();
 
-        (,,,,,, address highestBidder,) = market.auctions(1);
+        (,,,,,,,, address highestBidder,) = market.auctions(1);
         assertEq(highestBidder, user1, "Highest bidder should remain unchanged");
+    }
+
+    function test_ClaimRevertWhenAbandonedAuction() public {
+        vm.startPrank(user1);
+
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        skip(60 * 60 * 24 * 14 + 1);
+
+        vm.startPrank(address(this));
+
+        try market.claim(1) {
+            fail("Should not allow claiming abandoned auctions");
+        } catch {}
     }
 
     //
@@ -335,12 +348,12 @@ contract MarketTest is Test {
         uint256[] memory auctionIds = new uint256[](1);
         auctionIds[0] = auctionId;
 
-        skip(60 * 60 * 24 * 7 + 1);
+        skip(60 * 60 * 24 * 14 + 1); // the settlement period has ended
 
         vm.startPrank(address(this));
         market.withdraw(auctionIds);
 
-        (,,,,, bool withdrawn,,) = market.auctions(auctionId);
+        (,,,,, bool withdrawn,,,,) = market.auctions(auctionId);
         assertTrue(withdrawn, "Auction should be marked as withdrawn");
     }
 
@@ -353,13 +366,30 @@ contract MarketTest is Test {
         uint256[] memory auctionIds = new uint256[](1);
         auctionIds[0] = auctionId;
 
-        skip(60 * 60 * 24 * 7 + 1);
+        skip(60 * 60 * 24 * 1); // auction is still active
 
         vm.startPrank(address(this));
-        market.withdraw(auctionIds);
 
         try market.withdraw(auctionIds) {
             fail("Should have reverted on active auction withdrawal");
+        } catch {}
+    }
+
+    function test_WithdrawRevertDuringSettlementPeriod() public {
+        vm.startPrank(user1);
+
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        uint256 auctionId = market.nextAuctionId() - 1;
+        uint256[] memory auctionIds = new uint256[](1);
+        auctionIds[0] = auctionId;
+
+        skip(60 * 60 * 24 * 7 + 1); // beginning of the settlement period
+
+        vm.startPrank(address(this));
+
+        try market.withdraw(auctionIds) {
+            fail("Should have reverted withdrawal during settlement period");
         } catch {}
     }
 
@@ -372,7 +402,7 @@ contract MarketTest is Test {
         uint256[] memory auctionIds = new uint256[](1);
         auctionIds[0] = auctionId;
 
-        skip(60 * 60 * 24 * 7 + 1);
+        skip(60 * 60 * 24 * 14 + 1); // the settlement period has ended
 
         vm.startPrank(address(this));
         market.withdraw(auctionIds);
@@ -389,7 +419,7 @@ contract MarketTest is Test {
         vm.startPrank(user1);
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
-        (,address tokenAddress,,,,,,) = market.auctions(1);
+        (, address tokenAddress,,,,,,,,) = market.auctions(1);
         assertEq(tokenAddress, address(mock721));
 
         (uint256[] memory _tokenIds, uint256[] memory _amounts) = market.getAuctionTokens(1);
@@ -451,5 +481,37 @@ contract MarketTest is Test {
 
     function test_SetMaxTokens() public {
         market.setMaxTokens(255);
+    }
+
+    function testFail_SetMaxTokensByNonOwner() public {
+        vm.prank(vm.addr(69));
+        market.setMaxTokens(255);
+    }
+
+    function test_SetAuctionDuration() public {
+        market.setAuctionDuration(60 * 60 * 24 * 7);
+    }
+
+    function testFail_SetAuctionDurationByNonOwner() public {
+        vm.prank(vm.addr(69));
+        market.setAuctionDuration(60 * 60 * 24 * 7);
+    }
+
+    function test_SetSettlementDuration() public {
+        market.setSettlementDuration(60 * 60 * 24 * 7);
+    }
+
+    function testFail_SetSettlementDurationByNonOwner() public {
+        vm.prank(vm.addr(69));
+        market.setSettlementDuration(60 * 60 * 24 * 7);
+    }
+
+    function test_SetAbandonmentFeePercent() public {
+        market.setAbandonmentFeePercent(10);
+    }
+
+    function testFail_SetAbandonmentFeePercentByNonOwner() public {
+        vm.prank(vm.addr(69));
+        market.setAbandonmentFeePercent(10);
     }
 }

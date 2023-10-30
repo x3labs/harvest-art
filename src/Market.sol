@@ -17,13 +17,18 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "solady/src/auth/Ownable.sol";
 import "./IBidTicket.sol";
 
+// enum Status {Active, Claimed, Refunded, Abandoned, Withdrawn}
+
 struct Auction {
     uint8 auctionType;
     address tokenAddress;
     uint64 endTime;
     uint8 tokenCount;
+    // Status status;
     bool claimed;
     bool withdrawn;
+    bool refunded;
+    bool abandonded;
     address highestBidder;
     uint256 highestBid;
     mapping(uint256 => uint256) tokenIds;
@@ -45,15 +50,19 @@ contract Market is Ownable {
     uint256 public minStartPrice = 0.05 ether;
     uint256 public minBidIncrement = 0.01 ether;
     uint256 public auctionDuration = 7 days;
+    uint256 public settlementDuration = 7 days;
+    uint256 public abandonmentFeePercent = 20;
 
     mapping(uint256 => Auction) public auctions;
     mapping(address => mapping(uint256 => bool)) public auctionTokensERC721;
     mapping(address => mapping(uint256 => uint256)) public auctionTokensERC1155;
 
+    error AuctionAbandoned();
     error AuctionActive();
     error AuctionClaimed();
     error AuctionEnded();
     error AuctionNotEnded();
+    error AuctionRefunded();
     error AuctionWithdrawn();
     error BidTooLow();
     error InvalidLengthOfAmounts();
@@ -64,14 +73,19 @@ contract Market is Ownable {
     error NotEnoughBidTickets();
     error NotEnoughTokensInSupply();
     error NotHighestBidder();
+    error SettlementPeriodActive();
+    error SettlementPeriodEnded();
     error StartPriceTooLow();
     error TokenAlreadyInAuction();
     error TokenNotOwned();
     error TransferFailed();
 
+    event Abandoned(uint256 indexed auctionId, address indexed bidder, uint256 indexed fee);
     event AuctionStarted(address indexed bidder, address indexed tokenAddress, uint256[] indexed tokenIds);
     event Claimed(uint256 indexed auctionId, address indexed winner);
     event NewBid(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
+    event Refunded(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
+    event Withdrawn(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
 
     constructor(address theBarn_, address bidTicket_) {
         _initializeOwner(msg.sender);
@@ -88,10 +102,7 @@ contract Market is Ownable {
      *
      */
 
-    function startAuctionERC721(address tokenAddress, uint256[] calldata tokenIds)
-        external
-        payable
-    {
+    function startAuctionERC721(address tokenAddress, uint256[] calldata tokenIds) external payable {
         if (msg.value < minStartPrice) {
             revert StartPriceTooLow();
         }
@@ -110,6 +121,7 @@ contract Market is Ownable {
         auction.tokenCount = uint8(tokenIds.length);
 
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
+
         for (uint256 i; i < tokenIds.length;) {
             tokenMap[i] = tokenIds[i];
 
@@ -158,6 +170,7 @@ contract Market is Ownable {
 
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
         mapping(uint256 => uint256) storage amountMap = auction.amounts;
+
         for (uint256 i; i < tokenIds.length;) {
             tokenMap[i] = tokenIds[i];
             amountMap[i] = amounts[i];
@@ -230,8 +243,16 @@ contract Market is Ownable {
             revert NotHighestBidder();
         }
 
+        if (auction.refunded) {
+            revert AuctionRefunded();
+        }
+
         if (auction.claimed) {
             revert AuctionClaimed();
+        }
+
+        if (auction.abandonded) {
+            revert AuctionAbandoned();
         }
 
         auction.claimed = true;
@@ -246,11 +267,99 @@ contract Market is Ownable {
     }
 
     /**
+     * refund - Get a refund during the settlement period for any reason
+     *
+     * @param auctionId - The id of the auction to refund
+     *
+     */
+    function refund(uint256 auctionId) external {
+        Auction storage auction = auctions[auctionId];
+
+        if (block.timestamp < auction.endTime) {
+            revert AuctionActive();
+        }
+
+        if (block.timestamp > auction.endTime + settlementDuration) {
+            revert SettlementPeriodEnded();
+        }
+
+        if (msg.sender != auction.highestBidder) {
+            revert NotHighestBidder();
+        }
+
+        if (auction.abandonded) {
+            revert AuctionAbandoned();
+        }
+
+        if (auction.refunded) {
+            revert AuctionRefunded();
+        }
+
+        if (auction.claimed) {
+            revert AuctionClaimed();
+        }
+
+        auction.refunded = true;
+
+        (bool success,) = payable(msg.sender).call{value: auction.highestBid}("");
+        if (!success) revert TransferFailed();
+
+        emit Claimed(auctionId, msg.sender);
+    }
+
+    /**
+     *
+     * abandon - Mark unclaimed auctions as abandoned after the settlement period
+     *
+     * @param auctionId - The id of the auction to abandon
+     *
+     */
+    function abandon(uint256 auctionId) external {
+        Auction storage auction = auctions[auctionId];
+
+        if (block.timestamp < auction.endTime) {
+            revert AuctionActive();
+        }
+
+        if (block.timestamp < auction.endTime + settlementDuration) {
+            revert SettlementPeriodActive();
+        }
+
+        if (msg.sender != auction.highestBidder) {
+            revert NotHighestBidder();
+        }
+
+        if (auction.abandonded) {
+            revert AuctionAbandoned();
+        }
+
+        if (auction.refunded) {
+            revert AuctionRefunded();
+        }
+
+        if (auction.claimed) {
+            revert AuctionClaimed();
+        }
+
+        auction.abandonded = true;
+
+        uint256 fee = auction.highestBid * abandonmentFeePercent / 100;
+
+        (bool success,) = payable(auction.highestBidder).call{value: auction.highestBid - fee}("");
+        if (!success) revert TransferFailed();
+
+        (success,) = payable(msg.sender).call{value: fee}("");
+        if (!success) revert TransferFailed();
+
+        emit Abandoned(auctionId, auction.highestBidder, fee);
+    }
+
+    /**
      * withdraw - Withdraws the highest bid from an auction
      *
      * @param auctionIds - The ids of the auctions to withdraw from
      *
-     * @notice - Auctions can only be withdrawn from after they have ended
+     * @notice - Auctions can only be withdrawn after the settlement period has ended.
      *
      */
 
@@ -264,8 +373,20 @@ contract Market is Ownable {
                 revert AuctionWithdrawn();
             }
 
+            if (auction.refunded) {
+                revert AuctionRefunded();
+            }
+
+            if (auction.abandonded) {
+                revert AuctionAbandoned();
+            }
+
             if (block.timestamp <= auction.endTime) {
                 revert AuctionActive();
+            }
+
+            if (block.timestamp <= auction.endTime + settlementDuration) {
+                revert SettlementPeriodActive();
             }
 
             totalAmount += auction.highestBid;
@@ -293,6 +414,7 @@ contract Market is Ownable {
         uint256[] memory amounts = new uint256[](auction.tokenCount);
 
         uint256 tokenCount = auction.tokenCount;
+
         for (uint256 i; i < tokenCount;) {
             tokenIds[i] = auction.tokenIds[i];
             if (auction.auctionType == AUCTION_TYPE_ERC721) {
@@ -335,6 +457,14 @@ contract Market is Ownable {
 
     function setAuctionDuration(uint256 auctionDuration_) external onlyOwner {
         auctionDuration = auctionDuration_;
+    }
+
+    function setSettlementDuration(uint256 settlementDuration_) external onlyOwner {
+        settlementDuration = settlementDuration_;
+    }
+
+    function setAbandonmentFeePercent(uint256 abandonmentFeePercent_) external onlyOwner {
+        abandonmentFeePercent = abandonmentFeePercent_;
     }
 
     /**
@@ -383,6 +513,7 @@ contract Market is Ownable {
         if (tokenIds.length == 0) {
             revert InvalidLengthOfTokenIds();
         }
+
         if (tokenIds.length != amounts.length) {
             revert InvalidLengthOfAmounts();
         }
@@ -428,6 +559,7 @@ contract Market is Ownable {
         mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
 
         uint256 tokenCount = auction.tokenCount;
+
         for (uint256 i; i < tokenCount;) {
             uint256 tokenId = tokenMap[i];
             auctionTokens[tokenId] = false;
@@ -450,6 +582,7 @@ contract Market is Ownable {
         mapping(uint256 => uint256) storage auctionTokens = auctionTokensERC1155[tokenAddress];
 
         uint256 tokenCount = auction.tokenCount;
+
         for (uint256 i; i < tokenCount;) {
             uint256 tokenId = tokenMap[i];
             uint256 amount = amountMap[i];
