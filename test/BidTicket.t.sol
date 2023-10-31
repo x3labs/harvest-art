@@ -51,41 +51,45 @@ contract BidTicketTest is Test {
         bidTicket.setMarketContract(address(mockMarket));
     }
 
-    function test_MintByOwner() public {
+    function test_mint_Success_ByOwner() public {
         bidTicket.mint(user1, 1, 100);
         assertEq(bidTicket.balanceOf(user1, 1), 100, "User1 should have 100 BidTickets");
     }
 
-    function test_MintByHarvestContract() public {
+    function test_mint_Success_ByHarvestContract() public {
         vm.startPrank(address(mockHarvest));
         mockHarvest.mockMint(user1, 1, 100);
         assertEq(bidTicket.balanceOf(user1, 1), 100, "User1 should have 100 BidTickets");
     }
 
-    function testFail_MintByOther() public {
+    function test_mint_RevertIf_AnyoneElse() public {
         vm.prank(user1);
-        bidTicket.mint(user1, 1, 100);
+        try bidTicket.mint(user1, 1, 100) {
+            fail("Should revert if anyone else tries to mint");
+        } catch {}
     }
 
-    function test_BurnByOwner() public {
+    function test_burn_Success_ByOwner() public {
         bidTicket.mint(user1, 1, 100);
         bidTicket.burn(user1, 1, 50);
         assertEq(bidTicket.balanceOf(user1, 1), 50, "User1 should have 50 BidTickets after burning");
     }
 
-    function test_BurnByMarketContract() public {
+    function test_burn_Success_ByMarketContract() public {
         bidTicket.mint(user1, 1, 100);
         mockMarket.mockBurn(user1, 1, 50);
         assertEq(bidTicket.balanceOf(user1, 1), 50, "User1 should have 50 BidTickets after burning");
     }
 
-    function testFail_BurnByOther() public {
+    function test_burn_RevertIf_AnyoneElse() public {
         bidTicket.mint(user1, 1, 100);
         vm.startPrank(user1);
-        bidTicket.burn(user1, 1, 50);
+        try bidTicket.burn(user1, 1, 50) {
+            fail("Should revert if anyone else tries to burn");
+        } catch {}
     }
 
-    function test_SetURI() public {
+    function test_setURI_Success() public {
         string memory newURI = "https://newuri.example.com/api/token/{id}.json";
         bidTicket.setURI(1, newURI);
         assertEq(bidTicket.uri(1), newURI, "Token URI should be updated");

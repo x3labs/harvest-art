@@ -44,7 +44,7 @@ contract HarvestTest is Test {
         vm.deal(user2, 1 ether);
     }
 
-    function testFail_BatchTransferNoBarnSet() public {
+    function test_batchTransfer_RevertIf_NoBarnSet() public {
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
@@ -53,43 +53,53 @@ contract HarvestTest is Test {
         tokenIds[0] = 1;
         counts[0] = 1;
 
-        harvest.batchTransfer(tokenContracts, tokenIds, counts);
+        try harvest.batchTransfer(tokenContracts, tokenIds, counts) {
+            fail("Should revert if no barn set");
+        } catch {}
     }
 
-    function testFail_BatchTransferEmptyTokenContracts() public {
+    function test_batchTransfer_RevertIf_EmptyTokenContracts() public {
         address[] memory tokenContracts = new address[](0);
         uint256[] memory tokenIds = new uint256[](0);
         uint256[] memory counts = new uint256[](0);
 
-        harvest.batchTransfer(tokenContracts, tokenIds, counts);
+        try harvest.batchTransfer(tokenContracts, tokenIds, counts) {
+            fail("Should revert if empty tokenContracts");
+        } catch {}
     }
 
-    function testFail_BatchTransferMismatchedLengths() public {
+    function test_batchTransfer_RevertIf_MismatchedLengths() public {
         address[] memory tokenContracts = new address[](2);
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
 
-        harvest.batchTransfer(tokenContracts, tokenIds, counts);
+        try harvest.batchTransfer(tokenContracts, tokenIds, counts) {
+            fail("Should revert if mismatched lengths");
+        } catch {}
     }
 
-    function testFail_BatchTransferInvalidTokenCount() public {
+    function test_batchTransfer_RevertIf_InvalidTokenCount() public {
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
         counts[0] = 0;
 
-        harvest.batchTransfer(tokenContracts, tokenIds, counts);
+        try harvest.batchTransfer(tokenContracts, tokenIds, counts) {
+            fail("Should revert if invalid token count");
+        } catch {}
     }
 
-    function testFail_BatchTransferExceedMaxTokensPerTx() public {
+    function test_batchTransfer_RevertIf_ExceedMaxTokensPerTx() public {
         address[] memory tokenContracts = new address[](101);
         uint256[] memory tokenIds = new uint256[](101);
         uint256[] memory counts = new uint256[](101);
 
-        harvest.batchTransfer(tokenContracts, tokenIds, counts);
+        try harvest.batchTransfer(tokenContracts, tokenIds, counts) {
+            fail("Should revert if exceed max tokens per tx");
+        } catch {}
     }
 
-    function test_BatchTransferERC721() public {
+    function test_batchTransfer_Success_ERC721() public {
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
@@ -105,7 +115,7 @@ contract HarvestTest is Test {
         harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function test_BatchTransferMultipleERC721() public {
+    function test_batchTransfer_Success_MultipleERC721() public {
         address[] memory tokenContracts = new address[](3);
         uint256[] memory tokenIds = new uint256[](3);
         uint256[] memory counts = new uint256[](3);
@@ -129,7 +139,7 @@ contract HarvestTest is Test {
         harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function test_BatchTransferERC1155() public {
+    function test_batchTransfer_Success_ERC1155() public {
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
@@ -145,7 +155,7 @@ contract HarvestTest is Test {
         harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function test_BatchTransferMultipleERC1155() public {
+    function test_batchTransfer_Success_MultipleERC1155() public {
         address[] memory tokenContracts = new address[](3);
         uint256[] memory tokenIds = new uint256[](3);
         uint256[] memory counts = new uint256[](3);
@@ -169,36 +179,38 @@ contract HarvestTest is Test {
         harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
-    function test_WithdrawBalance() public {
+    function test_withdrawBalance_Success() public {
         harvest.withdrawBalance();
     }
 
-    function testFail_WithdrawBalanceByNonOwner() public {
+    function test_withdrawBalance_RevertIf_NotOwner() public {
         vm.prank(user1);
-        harvest.withdrawBalance();
+        try harvest.withdrawBalance() {
+            fail("Should revert if not owner");
+        } catch {}
     }
 
-    function test_SetPriceByContract() public {
+    function test_setPriceByContract_Success() public {
         harvest.setPriceByContract(vm.addr(69), 1 ether);
     }
 
-    function test_SetDefaultPrice() public {
+    function test_setDefaultPrice_Success() public {
         harvest.setDefaultPrice(1 gwei);
     }
 
-    function test_SetBidTicketAddress() public {
+    function test_setBidTicketAddress_Success() public {
         harvest.setBidTicketAddress(address(bidTicket));
     }
 
-    function test_SetBidTicketTokenId() public {
+    function test_setBidTicketTokenId_Success() public {
         harvest.setBidTicketTokenId(1);
     }
 
-    function test_SetBarn() public {
+    function test_setBarn_Success() public {
         harvest.setBarn(vm.addr(420));
     }
 
-    function test_SetMaxTokensPerTx() public {
+    function test_setMaxTokensPerTx_Success() public {
         harvest.setMaxTokensPerTx(1000000);
     }
 }

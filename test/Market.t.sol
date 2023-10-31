@@ -53,9 +53,9 @@ contract MarketTest is Test {
     }
 
     //
-    // startAuction()
+    // startAuctionERC721()
     //
-    function test_StartAuction() public {
+    function test_startAuctionERC721_Success() public {
         vm.startPrank(user1);
 
         uint256 startBalance = user1.balance;
@@ -73,7 +73,7 @@ contract MarketTest is Test {
         assertEq(highestBid, 0.05 ether);
     }
 
-    function testFuzz_StartAuction(uint256 bidAmount) public {
+    function testFuzz_startAuctionERC721_Success(uint256 bidAmount) public {
         vm.assume(bidAmount > 0.05 ether);
         vm.assume(user1.balance >= bidAmount);
 
@@ -94,7 +94,64 @@ contract MarketTest is Test {
         assertEq(highestBid, bidAmount);
     }
 
-    function test_StartAuctionForERC1155() public {
+    function test_startAuctionERC721_Success_NextAuctionIdIncrements() public {
+        vm.startPrank(user1);
+
+        uint256 nextAuctionId = market.nextAuctionId();
+
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        skip(60 * 60 * 24 * 7 + 1);
+        market.claim(nextAuctionId);
+
+        mock721.transferFrom(user1, theBarn, tokenIds[0]);
+        mock721.transferFrom(user1, theBarn, tokenIds[1]);
+        mock721.transferFrom(user1, theBarn, tokenIds[2]);
+
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        assertEq(market.nextAuctionId(), nextAuctionId + 2, "nextAuctionId should be incremented");
+    }
+
+    function test_startAuctionERC721_RevertIf_TooManyTokens() public {
+        vm.startPrank(user1);
+
+        uint256[] memory manyTokenIds = new uint256[](1001);
+
+        try market.startAuctionERC721{value: 0.05 ether}(address(mock721), manyTokenIds) {
+            fail("Should not allow creating an auction with too many tokens");
+        } catch {}
+    }
+
+    function test_startAuctionERC721_RevertIf_StartPriceTooLow() public {
+        vm.startPrank(user1);
+
+        try market.startAuctionERC721{value: 0.04 ether}(address(mock721), tokenIds) {
+            fail("Should not allow creating an auction with a start price below the minimum");
+        } catch {}
+    }
+
+    function test_startAuctionERC721_RevertIf_NotEnoughBidTickets() public {
+        bidTicket.burn(user1, 1, 100);
+        vm.startPrank(user1);
+
+        try market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds) {
+            fail("Should not allow creating an auction without enough bid tickets");
+        } catch {}
+    }
+
+    function test_startAuctionERC721_RevertIf_TokensOverlap() public {
+        vm.startPrank(user1);
+
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        try market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds) {
+            fail("Should not allow creating an auction with overlapping tokens");
+        } catch {}
+    }
+
+    //
+    // startAuctionERC1155
+    //
+    function test_startAuctionERC1155_Success() public {
         vm.startPrank(user1);
 
         uint256 startBalance = user1.balance;
@@ -112,64 +169,10 @@ contract MarketTest is Test {
         assertEq(highestBid, 0.05 ether);
     }
 
-    function test_StartAuctionWithTooManyTokens() public {
-        vm.startPrank(user1);
-
-        uint256[] memory manyTokenIds = new uint256[](1001);
-
-        try market.startAuctionERC721{value: 0.05 ether}(address(mock721), manyTokenIds) {
-            fail("Should not allow creating an auction with too many tokens");
-        } catch {}
-
-        uint256 nextAuctionId = market.nextAuctionId();
-        assertEq(nextAuctionId, 1, "nextAuctionId should remain unchanged");
-    }
-
-    function test_StartAuctionWithResetTokenTracker() public {
-        vm.startPrank(user1);
-
-        uint256 nextAuctionId = market.nextAuctionId();
-
-        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
-        skip(60 * 60 * 24 * 7 + 1);
-        market.claim(nextAuctionId);
-
-        mock721.transferFrom(user1, theBarn, tokenIds[0]);
-        mock721.transferFrom(user1, theBarn, tokenIds[1]);
-        mock721.transferFrom(user1, theBarn, tokenIds[2]);
-
-        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
-        assertEq(market.nextAuctionId(), nextAuctionId + 2, "nextAuctionId should be incremented");
-    }
-
-    function test_StartAuctionWithLowStartPrice() public {
-        vm.startPrank(user1);
-
-        try market.startAuctionERC721{value: 0.04 ether}(address(mock721), tokenIds) {
-            fail("Should not allow creating an auction with a start price below the minimum");
-        } catch {}
-
-        uint256 nextAuctionId = market.nextAuctionId();
-        assertEq(nextAuctionId, 1, "nextAuctionId should remain unchanged");
-    }
-
-    function testFail_StartAuctionWithoutEnoughBidTickets() public {
-        vm.startPrank(user1);
-        bidTicket.burn(user1, 1, 100);
-        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
-    }
-
-    function testFail_StartAuctionWithOverlappingTokens() public {
-        vm.startPrank(user1);
-
-        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
-        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
-    }
-
     //
     // bid()
     //
-    function test_Bid() public {
+    function test_bid_Success() public {
         vm.startPrank(user1);
         assertEq(bidTicket.balanceOf(user1, 1), 100);
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -187,7 +190,7 @@ contract MarketTest is Test {
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
     }
 
-    function test_BidSelf() public {
+    function test_bid_Success_SelfBidding() public {
         vm.startPrank(user1);
 
         assertEq(bidTicket.balanceOf(user1, 1), 100);
@@ -202,7 +205,7 @@ contract MarketTest is Test {
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
     }
 
-    function test_BidBelowMinimumIncrement() public {
+    function test_bid_RevertIf_BelowMinimumIncrement() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -210,12 +213,9 @@ contract MarketTest is Test {
         try market.bid{value: 0.055 ether}(1) {
             fail("Should not allow bids below the minimum increment");
         } catch {}
-
-        (,,,,,,,,, uint256 highestBid) = market.auctions(1);
-        assertEq(highestBid, 0.05 ether, "Highest bid should remain 0.05 ether");
     }
 
-    function test_BidRevertOnEqualBid() public {
+    function test_bid_RevertIf_BidEqualsHighestBid() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -228,7 +228,7 @@ contract MarketTest is Test {
         } catch {}
     }
 
-    function test_BidAfterAuctionEnded() public {
+    function test_bid_RevertIf_AfterAuctionEnded() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -238,12 +238,9 @@ contract MarketTest is Test {
         try market.bid{value: 0.06 ether}(1) {
             fail("Should not allow bids after the auction has ended");
         } catch {}
-
-        (,,,,,,,,, uint256 highestBid) = market.auctions(1);
-        assertEq(highestBid, 0.05 ether, "Highest bid should remain 0.05 ether");
     }
 
-    function testFuzz_Bid(uint256 bidA, uint256 bidB) public {
+    function testFuzz_bid_Success(uint256 bidA, uint256 bidB) public {
         uint256 _bidA = bound(bidA, 0.05 ether, 1000 ether);
         uint256 _bidB = bound(bidB, _bidA + market.minBidIncrement(), type(uint256).max);
         vm.assume(_bidB > _bidA && user1.balance >= _bidA && user2.balance >= _bidB);
@@ -265,7 +262,7 @@ contract MarketTest is Test {
     //
     // claim()
     //
-    function test_Claim() public {
+    function test_claim_Success() public {
         vm.startPrank(user1);
 
         uint256 auctionId = market.nextAuctionId();
@@ -290,7 +287,7 @@ contract MarketTest is Test {
         assertEq(mock721.ownerOf(tokenIds[2]), user2, "Should own token 2");
     }
 
-    function test_ClaimBeforeAuctionEnded() public {
+    function test_claim_RevertIf_BeforeAuctionEnded() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -298,12 +295,9 @@ contract MarketTest is Test {
         try market.claim(1) {
             fail("Should not allow claiming before the auction has ended");
         } catch {}
-
-        (,,,,,,,, address highestBidder,) = market.auctions(1);
-        assertEq(highestBidder, user1, "Highest bidder should remain unchanged");
     }
 
-    function test_ClaimByNonHighestBidder() public {
+    function test_claim_RevertIf_NotHighestBidder() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -317,12 +311,9 @@ contract MarketTest is Test {
         } catch {}
 
         vm.stopPrank();
-
-        (,,,,,,,, address highestBidder,) = market.auctions(1);
-        assertEq(highestBidder, user1, "Highest bidder should remain unchanged");
     }
 
-    function test_ClaimRevertWhenAbandonedAuction() public {
+    function test_claim_RevertIf_AbandonedAuction() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -339,7 +330,7 @@ contract MarketTest is Test {
     //
     // withdraw()
     //
-    function test_WithdrawSuccessful() public {
+    function test_withdraw_Success() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -357,7 +348,7 @@ contract MarketTest is Test {
         assertTrue(withdrawn, "Auction should be marked as withdrawn");
     }
 
-    function test_WithdrawRevertOnActiveAuction() public {
+    function test_withdraw_RevertIf_ActiveAuction() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -375,7 +366,7 @@ contract MarketTest is Test {
         } catch {}
     }
 
-    function test_WithdrawRevertDuringSettlementPeriod() public {
+    function test_withdraw_RevertIf_DuringSettlementPeriod() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -393,7 +384,7 @@ contract MarketTest is Test {
         } catch {}
     }
 
-    function test_WithdrawRevertOnAlreadyWithdrawnAuction() public {
+    function test_withdraw_RevertIf_AlreadyWithdrawn() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
@@ -415,7 +406,7 @@ contract MarketTest is Test {
     //
     // getters/setters
     //
-    function test_GetAuctionTokens() public {
+    function test_getAuctionTokens_Success() public {
         vm.startPrank(user1);
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
@@ -432,14 +423,14 @@ contract MarketTest is Test {
         assertEq(_amounts[2], amounts[2]);
     }
 
-    function test_SetMinStartPrice() public {
+    function test_setMinStartPrice_Success() public {
         market.setMinStartPrice(0.01 ether);
 
         vm.startPrank(user1);
         market.startAuctionERC721{value: 0.01 ether}(address(mock721), tokenIds);
     }
 
-    function test_SetMinBidIncrement() public {
+    function test_setMinBidIncrement_Success() public {
         market.setMinBidIncrement(0.02 ether);
 
         vm.startPrank(user1);
@@ -452,66 +443,80 @@ contract MarketTest is Test {
         } catch {}
     }
 
-    function test_SetBarnAddress() public {
+    function test_setBarnAddress_Success() public {
         market.setBarnAddress(vm.addr(420));
     }
 
-    function testFail_SetBarnAddressByNonOwner() public {
+    function test_setBarnAddress_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        market.setBarnAddress(vm.addr(420));
+        try market.setBarnAddress(vm.addr(420)) {
+            fail("Should not allow non-owners to set the barn address");
+        } catch {}
     }
 
-    function test_SetBidTicketAddress() public {
+    function test_setBidTicketAddress_Success() public {
         market.setBidTicketAddress(vm.addr(420));
     }
 
-    function testFail_SetBidTicketAddressByNonOwner() public {
+    function test_setBidTicketAddress_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        market.setBidTicketAddress(vm.addr(420));
+        try market.setBidTicketAddress(vm.addr(420)) {
+            fail("Should not allow non-owners to set the bid ticket address");
+        } catch {}
     }
 
-    function test_SetBidTicketTokenId() public {
+    function test_setBidTicketTokenId_Success() public {
         market.setBidTicketTokenId(255);
     }
 
-    function testFail_SetBidTicketTokenIdByNonOwner() public {
+    function test_setBidTicketTokenId_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        market.setBidTicketTokenId(255);
+        try market.setBidTicketTokenId(255) {
+            fail("Should not allow non-owners to set the bid ticket token id");
+        } catch {}
     }
 
-    function test_SetMaxTokens() public {
+    function test_setMaxTokens_Success() public {
         market.setMaxTokens(255);
     }
 
-    function testFail_SetMaxTokensByNonOwner() public {
+    function test_setMaxTokens_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        market.setMaxTokens(255);
+        try market.setMaxTokens(255) {
+            fail("Should not allow non-owners to set the max tokens");
+        } catch {}
     }
 
-    function test_SetAuctionDuration() public {
+    function test_setAuctionDuration_Success() public {
         market.setAuctionDuration(60 * 60 * 24 * 7);
     }
 
-    function testFail_SetAuctionDurationByNonOwner() public {
+    function test_setAuctionDuration_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        market.setAuctionDuration(60 * 60 * 24 * 7);
+        try market.setAuctionDuration(60 * 60 * 24 * 7) {
+            fail("Should not allow non-owners to set the auction duration");
+        } catch {}
     }
 
-    function test_SetSettlementDuration() public {
+    function test_setSettlementDuration_Success() public {
         market.setSettlementDuration(60 * 60 * 24 * 7);
     }
 
-    function testFail_SetSettlementDurationByNonOwner() public {
+    function test_setSettlementDuration_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        market.setSettlementDuration(60 * 60 * 24 * 7);
+        try market.setSettlementDuration(60 * 60 * 24 * 7) {
+            fail("Should not allow non-owners to set the settlement duration");
+        } catch {}
     }
 
-    function test_SetAbandonmentFeePercent() public {
+    function test_setAbandonmentFeePercent_Success() public {
         market.setAbandonmentFeePercent(10);
     }
 
-    function testFail_SetAbandonmentFeePercentByNonOwner() public {
+    function test_setAbandonmentFeePercent_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        market.setAbandonmentFeePercent(10);
+        try market.setAbandonmentFeePercent(10) {
+            fail("Should not allow non-owners to set the abandonment fee percent");
+        } catch {}
     }
 }
