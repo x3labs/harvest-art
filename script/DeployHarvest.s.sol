@@ -11,7 +11,7 @@ contract DeployHarvestScript is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        new Harvest(vm.envAddress("ADDRESS_BID_TICKET"));
+        new Harvest(vm.envAddress("ADDRESS_BARN"), vm.envAddress("ADDRESS_BID_TICKET"));
 
         vm.stopBroadcast();
     }

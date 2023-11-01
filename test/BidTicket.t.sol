@@ -15,6 +15,10 @@ contract MockHarvestContract {
     function mockMint(address account, uint256 id, uint256 amount) external {
         bidTicket.mint(account, id, amount);
     }
+
+    function mockMintBatch(address account, uint256[] calldata ids, uint256[] calldata amounts) external {
+        bidTicket.mintBatch(account, ids, amounts);
+    }
 }
 
 contract MockMarketContract {
@@ -27,6 +31,10 @@ contract MockMarketContract {
     function mockBurn(address account, uint256 id, uint256 amount) external {
         bidTicket.burn(account, id, amount);
     }
+
+    function mockBurnBatch(address account, uint256[] calldata ids, uint256[] calldata amounts) external {
+        bidTicket.burnBatch(account, ids, amounts);
+    }
 }
 
 contract BidTicketTest is Test {
@@ -36,6 +44,8 @@ contract BidTicketTest is Test {
     address public user1;
     address public user2;
     address public user3;
+    uint256[] ids = new uint256[](1);
+    uint256[] amounts = new uint256[](1);
 
     function setUp() public {
         bidTicket = new BidTicket();
@@ -49,6 +59,9 @@ contract BidTicketTest is Test {
 
         bidTicket.setHarvestContract(address(mockHarvest));
         bidTicket.setMarketContract(address(mockMarket));
+
+        ids[0] = 1;
+        amounts[0] = 100;
     }
 
     function test_mint_Success_ByOwner() public {
@@ -65,6 +78,24 @@ contract BidTicketTest is Test {
     function test_mint_RevertIf_AnyoneElse() public {
         vm.prank(user1);
         try bidTicket.mint(user1, 1, 100) {
+            fail("Should revert if anyone else tries to mint");
+        } catch {}
+    }
+
+    function test_mintBatch_Success_ByOwner() public {
+        bidTicket.mintBatch(user1, ids, amounts);
+        assertEq(bidTicket.balanceOf(user1, 1), 100, "User1 should have 100 BidTickets");
+    }
+
+    function test_mintBatch_Success_ByHarvestContract() public {
+        vm.startPrank(address(mockHarvest));
+        mockHarvest.mockMintBatch(user1, ids, amounts);
+        assertEq(bidTicket.balanceOf(user1, 1), 100, "User1 should have 100 BidTickets");
+    }
+
+    function test_mintBatch_RevertIf_AnyoneElse() public {
+        vm.prank(user1);
+        try bidTicket.mintBatch(user1, ids, amounts) {
             fail("Should revert if anyone else tries to mint");
         } catch {}
     }
@@ -89,9 +120,39 @@ contract BidTicketTest is Test {
         } catch {}
     }
 
+    function test_burnBatch_Success_ByOwner() public {
+        bidTicket.mintBatch(user1, ids, amounts);
+        bidTicket.burnBatch(user1, ids, amounts);
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User1 should have 0 BidTickets after burning");
+    }
+
+    function test_burnBatch_Success_ByMarketContract() public {
+        bidTicket.mintBatch(user1, ids, amounts);
+        mockMarket.mockBurnBatch(user1, ids, amounts);
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User1 should have 0 BidTickets after burning");
+    }
+
+    function test_burnBatch_RevertIf_AnyoneElse() public {
+        bidTicket.mintBatch(user1, ids, amounts);
+        vm.startPrank(user1);
+        try bidTicket.burnBatch(user1, ids, amounts) {
+            fail("Should revert if anyone else tries to burn");
+        } catch {}
+    }
+
     function test_setURI_Success() public {
         string memory newURI = "https://newuri.example.com/api/token/{id}.json";
         bidTicket.setURI(1, newURI);
         assertEq(bidTicket.uri(1), newURI, "Token URI should be updated");
+    }
+
+    function test_setHarvestContract_Success() public {
+        bidTicket.setHarvestContract(address(mockHarvest));
+        assertEq(bidTicket.harvestContract(), address(mockHarvest), "Harvest contract should be updated");
+    }
+
+    function test_setMarketContract_Success() public {
+        bidTicket.setMarketContract(address(mockMarket));
+        assertEq(bidTicket.marketContract(), address(mockMarket), "Market contract should be updated");
     }
 }

@@ -95,10 +95,9 @@ contract MarketTest is Test {
     }
 
     function test_startAuctionERC721_Success_NextAuctionIdIncrements() public {
-        vm.startPrank(user1);
-
         uint256 nextAuctionId = market.nextAuctionId();
 
+        vm.startPrank(user1);
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
         skip(60 * 60 * 24 * 7 + 1);
         market.claim(nextAuctionId);
@@ -111,41 +110,49 @@ contract MarketTest is Test {
         assertEq(market.nextAuctionId(), nextAuctionId + 2, "nextAuctionId should be incremented");
     }
 
-    function test_startAuctionERC721_RevertIf_TooManyTokens() public {
+    function test_startAuctionERC721_RevertIf_MaxTokensPerTxReached() public {
         vm.startPrank(user1);
-
         uint256[] memory manyTokenIds = new uint256[](1001);
-
-        try market.startAuctionERC721{value: 0.05 ether}(address(mock721), manyTokenIds) {
-            fail("Should not allow creating an auction with too many tokens");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("MaxTokensPerTxReached()")));
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), manyTokenIds);
     }
 
     function test_startAuctionERC721_RevertIf_StartPriceTooLow() public {
         vm.startPrank(user1);
-
-        try market.startAuctionERC721{value: 0.04 ether}(address(mock721), tokenIds) {
-            fail("Should not allow creating an auction with a start price below the minimum");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("StartPriceTooLow()")));
+        market.startAuctionERC721{value: 0.04 ether}(address(mock721), tokenIds);
     }
 
-    function test_startAuctionERC721_RevertIf_NotEnoughBidTickets() public {
+    function test_startAuctionERC721_RevertIf_BurnExceedsBalance() public {
         bidTicket.burn(user1, 1, 100);
-        vm.startPrank(user1);
 
-        try market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds) {
-            fail("Should not allow creating an auction without enough bid tickets");
-        } catch {}
+        vm.startPrank(user1);
+        vm.expectRevert(bytes4(keccak256("BurnExceedsBalance()")));
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
     }
 
-    function test_startAuctionERC721_RevertIf_TokensOverlap() public {
+    function test_startAuctionERC721_RevertIf_TokenAlreadyInAuction() public {
         vm.startPrank(user1);
-
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        vm.expectRevert(bytes4(keccak256("TokenAlreadyInAuction()")));
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+    }
 
-        try market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds) {
-            fail("Should not allow creating an auction with overlapping tokens");
-        } catch {}
+    function test_startAuctionERC721_RevertIf_InvalidLengthOfTokenIds() public {
+        vm.startPrank(user1);
+        vm.expectRevert(bytes4(keccak256("InvalidLengthOfTokenIds()")));
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), new uint256[](0));
+    }
+
+    function test_startAuctionERC721_RevertIf_TokenNotOwned() public {
+        mock721.mint(user2, 10);
+
+        uint256[] memory notOwnedTokenIds = new uint256[](1);
+        notOwnedTokenIds[0] = tokenCount + 1;
+
+        vm.startPrank(user1);
+        vm.expectRevert(bytes4(keccak256("TokenNotOwned()")));
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), notOwnedTokenIds);
     }
 
     //
@@ -167,6 +174,40 @@ contract MarketTest is Test {
         assertEq(tokenAddress, address(mock1155));
         assertEq(highestBidder, user1);
         assertEq(highestBid, 0.05 ether);
+    }
+
+    function test_startAuctionERC1155_RevertIf_StartPriceTooLow() public {
+        vm.startPrank(user1);
+        vm.expectRevert(bytes4(keccak256("StartPriceTooLow()")));
+        market.startAuctionERC1155{value: 0.04 ether}(address(mock721), tokenIds, amounts);
+    }
+
+    function test_startAuctionERC1155_RevertIf_InvalidLengthOfTokenIds() public {
+        vm.startPrank(user1);
+        vm.expectRevert(bytes4(keccak256("InvalidLengthOfTokenIds()")));
+        market.startAuctionERC1155{value: 0.05 ether}(address(mock1155), new uint256[](0), amounts);
+    }
+
+    function test_startAuctionERC1155_RevertIf_InvalidLengthOfAmounts() public {
+        vm.startPrank(user1);
+        vm.expectRevert(bytes4(keccak256("InvalidLengthOfAmounts()")));
+        market.startAuctionERC1155{value: 0.05 ether}(address(mock1155), tokenIds, new uint256[](0));
+    }
+
+    function test_startAuctionERC1155_RevertIf_MaxTokensPerTxReached() public {
+        uint256[] memory manyTokenIds = new uint256[](1001);
+        uint256[] memory manyAmounts = new uint256[](1001);
+
+        for (uint256 i; i < 1001; i++) {
+            manyTokenIds[i] = i;
+            manyAmounts[i] = 1;
+        }
+
+        mock1155.mintBatch(theBarn, manyTokenIds, manyAmounts, "");
+
+        vm.prank(user1);
+        vm.expectRevert(bytes4(keccak256("MaxTokensPerTxReached()")));
+        market.startAuctionERC1155{value: 0.05 ether}(address(mock1155), manyTokenIds, manyAmounts);
     }
 
     //
@@ -205,14 +246,26 @@ contract MarketTest is Test {
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
     }
 
-    function test_bid_RevertIf_BelowMinimumIncrement() public {
+    function test_bid_Success_LastMinuteBidding() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        (,, uint256 endTimeA,,,,,,,) = market.auctions(1);
 
-        try market.bid{value: 0.055 ether}(1) {
-            fail("Should not allow bids below the minimum increment");
-        } catch {}
+        skip(60 * 60 * 24 * 7 - 59 * 59); // 1 second before auction ends
+
+        market.bid{value: 0.06 ether}(1);
+
+        (,, uint256 endTimeB,,,,,,,) = market.auctions(1);
+
+        assertLt(endTimeA, endTimeB, "New endtime should be greater than old endtime");
+    }
+
+    function test_bid_RevertIf_BelowMinimumIncrement() public {
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        vm.expectRevert(bytes4(keccak256("BidTooLow()")));
+        market.bid{value: 0.055 ether}(1);
     }
 
     function test_bid_RevertIf_BidEqualsHighestBid() public {
@@ -222,22 +275,16 @@ contract MarketTest is Test {
         uint256 auctionId = market.nextAuctionId() - 1;
 
         market.bid{value: 0.06 ether}(auctionId);
-
-        try market.bid{value: 0.06 ether}(auctionId) {
-            fail("Should have reverted on equal bid");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("BidTooLow()")));
+        market.bid{value: 0.06 ether}(auctionId);
     }
 
     function test_bid_RevertIf_AfterAuctionEnded() public {
         vm.startPrank(user1);
-
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
-
         skip(60 * 60 * 24 * 7 + 1);
-
-        try market.bid{value: 0.06 ether}(1) {
-            fail("Should not allow bids after the auction has ended");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("AuctionEnded()")));
+        market.bid{value: 0.06 ether}(1);
     }
 
     function testFuzz_bid_Success(uint256 bidA, uint256 bidB) public {
@@ -262,7 +309,7 @@ contract MarketTest is Test {
     //
     // claim()
     //
-    function test_claim_Success() public {
+    function test_claim_Success_ERC721() public {
         vm.startPrank(user1);
 
         uint256 auctionId = market.nextAuctionId();
@@ -287,14 +334,42 @@ contract MarketTest is Test {
         assertEq(mock721.ownerOf(tokenIds[2]), user2, "Should own token 2");
     }
 
+    function test_claim_Success_ERC1155() public {
+        vm.startPrank(user1);
+
+        assertEq(mock1155.balanceOf(theBarn, tokenIds[0]), 10, "Should own token 0");
+        assertEq(mock1155.balanceOf(theBarn, tokenIds[1]), 10, "Should own token 1");
+        assertEq(mock1155.balanceOf(theBarn, tokenIds[2]), 10, "Should own token 2");
+        assertEq(mock1155.isApprovedForAll(theBarn, address(market)), true, "Should be approved for all");
+
+        uint256 auctionId = market.nextAuctionId();
+        market.startAuctionERC1155{value: 0.05 ether}(address(mock1155), tokenIds, amounts);
+        assertEq(user1.balance, 0.95 ether, "user1 should have 0.95 after starting the auction");
+
+        vm.startPrank(user2);
+        market.bid{value: 0.06 ether}(auctionId);
+
+        (,,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(auctionId);
+
+        assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
+        assertEq(user2.balance, 0.94 ether, "user2 should have 0.95 ether");
+        assertEq(highestBidder, user2, "Highest bidder should be user1");
+        assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
+
+        skip(60 * 60 * 24 * 7 + 1);
+        market.claim(auctionId);
+
+        assertEq(mock1155.balanceOf(user2, tokenIds[0]), 1, "Should own token 0");
+        assertEq(mock1155.balanceOf(user2, tokenIds[1]), 1, "Should own token 1");
+        assertEq(mock1155.balanceOf(user2, tokenIds[2]), 1, "Should own token 2");
+    }
+
     function test_claim_RevertIf_BeforeAuctionEnded() public {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
-
-        try market.claim(1) {
-            fail("Should not allow claiming before the auction has ended");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("AuctionNotEnded()")));
+        market.claim(1);
     }
 
     function test_claim_RevertIf_NotHighestBidder() public {
@@ -305,30 +380,205 @@ contract MarketTest is Test {
         skip(60 * 60 * 24 * 7 + 1);
 
         vm.startPrank(user2);
-
-        try market.claim(1) {
-            fail("Should not allow non-highest bidders to claim");
-        } catch {}
-
-        vm.stopPrank();
+        vm.expectRevert(bytes4(keccak256("NotHighestBidder()")));
+        market.claim(1);
     }
 
     function test_claim_RevertIf_AbandonedAuction() public {
-        vm.startPrank(user1);
+        uint256 auctionId = market.nextAuctionId();
 
+        vm.prank(user1);
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         skip(60 * 60 * 24 * 14 + 1);
 
-        vm.startPrank(address(this));
+        market.abandon(auctionId);
 
-        try market.claim(1) {
-            fail("Should not allow claiming abandoned auctions");
-        } catch {}
+        vm.prank(user1);
+        vm.expectRevert(bytes4(keccak256("AuctionAbandoned()")));
+        market.claim(auctionId);
+    }
+
+    function test_claim_RevertIf_AuctionRefunded() public {
+        uint256 auctionId = market.nextAuctionId();
+
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        skip(60 * 60 * 24 * 7 + 1);
+
+        market.refund(auctionId);
+        vm.expectRevert(bytes4(keccak256("AuctionRefunded()")));
+        market.claim(auctionId);
+    }
+
+    function test_claim_RevertIf_AuctionClaimed() public {
+        uint256 auctionId = market.nextAuctionId();
+
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        skip(60 * 60 * 24 * 7 + 1);
+
+        market.claim(auctionId);
+        vm.expectRevert(bytes4(keccak256("AuctionClaimed()")));
+        market.claim(auctionId);
     }
 
     //
-    // withdraw()
+    // refund
+    //
+    function test_refund_Success() public {
+        uint256 auctionId = market.nextAuctionId();
+
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        assertEq(user1.balance, 1 ether - 0.05 ether, "user1 should have 0.05 less");
+
+        skip(60 * 60 * 24 * 7 + 1);
+
+        market.refund(auctionId);
+        assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
+
+        (,,,,,, bool refunded,,,) = market.auctions(auctionId);
+        assertEq(refunded, true, "Auction should be marked as refunded");
+    }
+
+    function test_refund_RevertIf_AuctionActive() public {
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        vm.expectRevert(bytes4(keccak256("AuctionActive()")));
+        market.refund(1);
+    }
+
+    function test_refund_RevertIf_SettlementPeriodEnded() public {
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        skip(60 * 60 * 24 * 14 + 1);
+
+        vm.expectRevert(bytes4(keccak256("SettlementPeriodEnded()")));
+        market.refund(1);
+    }
+
+    function test_refund_RevertIf_NotHighestBidder() public {
+        vm.prank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        skip(60 * 60 * 24 * 7 + 1);
+
+        vm.prank(user2);
+        vm.expectRevert(bytes4(keccak256("NotHighestBidder()")));
+        market.refund(1);
+    }
+
+    function test_refund_RevertIf_AuctionRefunded() public {
+        uint256 auctionId = market.nextAuctionId();
+
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        skip(60 * 60 * 24 * 7 + 1);
+
+        market.refund(auctionId);
+        vm.expectRevert(bytes4(keccak256("AuctionRefunded()")));
+        market.refund(auctionId);
+    }
+
+    function test_refund_RevertIf_AuctionClaimed() public {
+        uint256 auctionId = market.nextAuctionId();
+
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        skip(60 * 60 * 24 * 7 + 1);
+
+        market.claim(auctionId);
+        vm.expectRevert(bytes4(keccak256("AuctionClaimed()")));
+        market.refund(auctionId);
+    }
+
+    //
+    // abandon
+    //
+    function test_abandon_Success() public {
+        uint256 auctionId = market.nextAuctionId();
+        uint256 startingBid = 0.05 ether;
+
+        vm.prank(user1);
+        market.startAuctionERC721{value: startingBid}(address(mock721), tokenIds);
+        assertEq(user1.balance, 0.95 ether, "user1 should have 0.95 after starting the auction");
+
+        skip(60 * 60 * 24 * 14 + 1);
+
+        vm.startPrank(address(this));
+        market.abandon(auctionId);
+
+        assertEq(
+            user1.balance,
+            1 ether - startingBid * market.abandonmentFeePercent() / 100,
+            "user1 should have 1 ether - fee"
+        );
+
+        (,,,,,,, bool abandoned,,) = market.auctions(auctionId);
+        assertEq(abandoned, true, "Auction should be marked as abandoned");
+    }
+
+    function test_abandon_RevertIf_AuctionActive() public {
+        vm.prank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        vm.expectRevert(bytes4(keccak256("AuctionActive()")));
+        market.abandon(1);
+    }
+
+    function test_abandon_RevertIf_SettlementPeriodActive() public {
+        vm.prank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        skip(60 * 60 * 24 * 7 + 1);
+
+        vm.expectRevert(bytes4(keccak256("SettlementPeriodActive()")));
+        market.abandon(1);
+    }
+
+    function test_abandon_RevertIf_AuctionAbandoned() public {
+        vm.prank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        skip(60 * 60 * 24 * 14 + 1);
+
+        market.abandon(1);
+        vm.expectRevert(bytes4(keccak256("AuctionAbandoned()")));
+        market.abandon(1);
+    }
+
+    function test_abandon_RevertIf_AuctionRefunded() public {
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        skip(60 * 60 * 24 * 7 + 1);
+        market.refund(1);
+        vm.stopPrank();
+
+        skip(60 * 60 * 24 * 7);
+
+        vm.expectRevert(bytes4(keccak256("AuctionRefunded()")));
+        market.abandon(1);
+    }
+
+    function test_abandon_RevertIf_AuctionClaimed() public {
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        skip(60 * 60 * 24 * 14 + 1);
+        market.claim(1);
+        vm.stopPrank();
+
+        vm.expectRevert(bytes4(keccak256("AuctionClaimed()")));
+        market.abandon(1);
+    }
+
+    //
+    // withdraw
     //
     function test_withdraw_Success() public {
         vm.startPrank(user1);
@@ -360,15 +610,12 @@ contract MarketTest is Test {
         skip(60 * 60 * 24 * 1); // auction is still active
 
         vm.startPrank(address(this));
-
-        try market.withdraw(auctionIds) {
-            fail("Should have reverted on active auction withdrawal");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("AuctionActive()")));
+        market.withdraw(auctionIds);
     }
 
-    function test_withdraw_RevertIf_DuringSettlementPeriod() public {
+    function test_withdraw_RevertIf_SettlementPeriodActive() public {
         vm.startPrank(user1);
-
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         uint256 auctionId = market.nextAuctionId() - 1;
@@ -378,15 +625,12 @@ contract MarketTest is Test {
         skip(60 * 60 * 24 * 7 + 1); // beginning of the settlement period
 
         vm.startPrank(address(this));
-
-        try market.withdraw(auctionIds) {
-            fail("Should have reverted withdrawal during settlement period");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("SettlementPeriodActive()")));
+        market.withdraw(auctionIds);
     }
 
-    function test_withdraw_RevertIf_AlreadyWithdrawn() public {
+    function test_withdraw_RevertIf_AuctionWithdrawn() public {
         vm.startPrank(user1);
-
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
         uint256 auctionId = market.nextAuctionId() - 1;
@@ -397,16 +641,45 @@ contract MarketTest is Test {
 
         vm.startPrank(address(this));
         market.withdraw(auctionIds);
+        vm.expectRevert(bytes4(keccak256("AuctionWithdrawn()")));
+        market.withdraw(auctionIds);
+    }
 
-        try market.withdraw(auctionIds) {
-            fail("Should have reverted on already withdrawn auction");
-        } catch {}
+    function test_withdraw_RevertIf_AuctionRefunded() public {
+        uint256 auctionId = market.nextAuctionId();
+
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        skip(60 * 60 * 24 * 7 + 1);
+        market.refund(auctionId);
+        vm.stopPrank();
+
+        uint256[] memory auctionIds = new uint256[](1);
+        auctionIds[0] = auctionId;
+        vm.expectRevert(bytes4(keccak256("AuctionRefunded()")));
+        market.withdraw(auctionIds);
+    }
+
+    function test_withdraw_RevertIf_AuctionAbandoned() public {
+        uint256 auctionId = market.nextAuctionId();
+
+        vm.prank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        skip(60 * 60 * 24 * 14 + 1);
+
+        market.abandon(auctionId);
+
+        uint256[] memory auctionIds = new uint256[](1);
+        auctionIds[0] = auctionId;
+        vm.expectRevert(bytes4(keccak256("AuctionAbandoned()")));
+        market.withdraw(auctionIds);
     }
 
     //
     // getters/setters
     //
-    function test_getAuctionTokens_Success() public {
+    function test_getAuctionTokens_Success_ERC721() public {
         vm.startPrank(user1);
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
@@ -423,6 +696,23 @@ contract MarketTest is Test {
         assertEq(_amounts[2], amounts[2]);
     }
 
+    function test_getAuctionTokens_Success_ERC1155() public {
+        vm.startPrank(user1);
+        market.startAuctionERC1155{value: 0.05 ether}(address(mock1155), tokenIds, tokenIdAmounts);
+
+        (, address tokenAddress,,,,,,,,) = market.auctions(1);
+        assertEq(tokenAddress, address(mock1155));
+
+        (uint256[] memory _tokenIds, uint256[] memory _amounts) = market.getAuctionTokens(1);
+
+        assertEq(_tokenIds[0], tokenIds[0]);
+        assertEq(_tokenIds[1], tokenIds[1]);
+        assertEq(_tokenIds[2], tokenIds[2]);
+        assertEq(_amounts[0], tokenIdAmounts[0]);
+        assertEq(_amounts[1], tokenIdAmounts[1]);
+        assertEq(_amounts[2], tokenIdAmounts[2]);
+    }
+
     function test_setMinStartPrice_Success() public {
         market.setMinStartPrice(0.01 ether);
 
@@ -430,17 +720,23 @@ contract MarketTest is Test {
         market.startAuctionERC721{value: 0.01 ether}(address(mock721), tokenIds);
     }
 
-    function test_setMinBidIncrement_Success() public {
+    function test_setMintBidIncrement_Success() public {
         market.setMinBidIncrement(0.02 ether);
 
         vm.startPrank(user1);
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
-
         market.bid{value: 0.07 ether}(1);
+        market.bid{value: 0.09 ether}(1);
+    }
 
-        try market.bid{value: 0.08 ether}(1) {
-            fail("Should not allow bids below the minimum increment");
-        } catch {}
+    function test_setMinBidIncrement_RevertIf_BidTooLow() public {
+        market.setMinBidIncrement(0.02 ether);
+
+        vm.startPrank(user1);
+        market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+        market.bid{value: 0.07 ether}(1);
+        vm.expectRevert(bytes4(keccak256("BidTooLow()")));
+        market.bid{value: 0.08 ether}(1);
     }
 
     function test_setBarnAddress_Success() public {
@@ -449,9 +745,8 @@ contract MarketTest is Test {
 
     function test_setBarnAddress_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        try market.setBarnAddress(vm.addr(420)) {
-            fail("Should not allow non-owners to set the barn address");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("Unauthorized()")));
+        market.setBarnAddress(vm.addr(420));
     }
 
     function test_setBidTicketAddress_Success() public {
@@ -460,9 +755,8 @@ contract MarketTest is Test {
 
     function test_setBidTicketAddress_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        try market.setBidTicketAddress(vm.addr(420)) {
-            fail("Should not allow non-owners to set the bid ticket address");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("Unauthorized()")));
+        market.setBidTicketAddress(vm.addr(420));
     }
 
     function test_setBidTicketTokenId_Success() public {
@@ -471,9 +765,8 @@ contract MarketTest is Test {
 
     function test_setBidTicketTokenId_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        try market.setBidTicketTokenId(255) {
-            fail("Should not allow non-owners to set the bid ticket token id");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("Unauthorized()")));
+        market.setBidTicketTokenId(255);
     }
 
     function test_setMaxTokens_Success() public {
@@ -482,9 +775,8 @@ contract MarketTest is Test {
 
     function test_setMaxTokens_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        try market.setMaxTokens(255) {
-            fail("Should not allow non-owners to set the max tokens");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("Unauthorized()")));
+        market.setMaxTokens(255);
     }
 
     function test_setAuctionDuration_Success() public {
@@ -493,9 +785,8 @@ contract MarketTest is Test {
 
     function test_setAuctionDuration_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        try market.setAuctionDuration(60 * 60 * 24 * 7) {
-            fail("Should not allow non-owners to set the auction duration");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("Unauthorized()")));
+        market.setAuctionDuration(60 * 60 * 24 * 7);
     }
 
     function test_setSettlementDuration_Success() public {
@@ -504,9 +795,8 @@ contract MarketTest is Test {
 
     function test_setSettlementDuration_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        try market.setSettlementDuration(60 * 60 * 24 * 7) {
-            fail("Should not allow non-owners to set the settlement duration");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("Unauthorized()")));
+        market.setSettlementDuration(60 * 60 * 24 * 7);
     }
 
     function test_setAbandonmentFeePercent_Success() public {
@@ -515,8 +805,7 @@ contract MarketTest is Test {
 
     function test_setAbandonmentFeePercent_RevertIf_NotOwner() public {
         vm.prank(vm.addr(69));
-        try market.setAbandonmentFeePercent(10) {
-            fail("Should not allow non-owners to set the abandonment fee percent");
-        } catch {}
+        vm.expectRevert(bytes4(keccak256("Unauthorized()")));
+        market.setAbandonmentFeePercent(10);
     }
 }

@@ -37,7 +37,7 @@ struct Auction {
 
 contract Market is Ownable {
     uint8 private constant AUCTION_TYPE_ERC721 = 0;
-    uint8 private constant AUCTION_TYPE_ERC1155 = 0;
+    uint8 private constant AUCTION_TYPE_ERC1155 = 1;
 
     IBidTicket public bidTicket;
 
@@ -70,7 +70,6 @@ contract Market is Ownable {
     error InvalidTokenAddress();
     error MaxTokensPerTxReached();
     error NotApproved();
-    error NotEnoughBidTickets();
     error NotEnoughTokensInSupply();
     error NotHighestBidder();
     error SettlementPeriodActive();
@@ -287,10 +286,6 @@ contract Market is Ownable {
             revert NotHighestBidder();
         }
 
-        if (auction.abandonded) {
-            revert AuctionAbandoned();
-        }
-
         if (auction.refunded) {
             revert AuctionRefunded();
         }
@@ -314,7 +309,7 @@ contract Market is Ownable {
      * @param auctionId - The id of the auction to abandon
      *
      */
-    function abandon(uint256 auctionId) external {
+    function abandon(uint256 auctionId) external onlyOwner {
         Auction storage auction = auctions[auctionId];
 
         if (block.timestamp < auction.endTime) {
@@ -323,10 +318,6 @@ contract Market is Ownable {
 
         if (block.timestamp < auction.endTime + settlementDuration) {
             revert SettlementPeriodActive();
-        }
-
-        if (msg.sender != auction.highestBidder) {
-            revert NotHighestBidder();
         }
 
         if (auction.abandonded) {
@@ -574,14 +565,13 @@ contract Market is Ownable {
     function _transferERC1155s(Auction storage auction) internal {
         address tokenAddress = auction.tokenAddress;
         IERC1155 erc1155Contract = IERC1155(tokenAddress);
-        uint256[] memory tokenIds = new uint256[](auction.tokenCount);
-        uint256[] memory amounts = new uint256[](auction.tokenCount);
+        uint256 tokenCount = auction.tokenCount;
+        uint256[] memory tokenIds = new uint256[](tokenCount);
+        uint256[] memory amounts = new uint256[](tokenCount);
 
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
         mapping(uint256 => uint256) storage amountMap = auction.amounts;
         mapping(uint256 => uint256) storage auctionTokens = auctionTokensERC1155[tokenAddress];
-
-        uint256 tokenCount = auction.tokenCount;
 
         for (uint256 i; i < tokenCount;) {
             uint256 tokenId = tokenMap[i];

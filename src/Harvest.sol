@@ -18,9 +18,7 @@ import "solady/src/auth/Ownable.sol";
 import "./IBidTicket.sol";
 
 contract Harvest is Ownable {
-    
     IBidTicket public bidTicket;
-
     address public theBarn;
     uint256 public defaultPrice = 1 gwei;
     uint256 public maxTokensPerTx = 100;
@@ -28,7 +26,6 @@ contract Harvest is Ownable {
 
     mapping(address => uint256) private _contractPrices;
 
-    error BarnNotSet();
     error InvalidTokenContractLength();
     error InvalidParamsLength();
     error MaxTokensPerTxReached();
@@ -36,18 +33,15 @@ contract Harvest is Ownable {
 
     event BatchTransfer(address indexed user, uint256 indexed totalTokens);
 
-    constructor(address bidTicket_) {
+    constructor(address theBarn_, address bidTicket_) {
         _initializeOwner(msg.sender);
+        theBarn = theBarn_;
         bidTicket = IBidTicket(bidTicket_);
     }
 
     function batchTransfer(address[] calldata tokenContracts, uint256[] calldata tokenIds, uint256[] calldata counts)
         external
     {
-        if (theBarn == address(0)) {
-            revert BarnNotSet();
-        }
-
         if (tokenContracts.length == 0) {
             revert InvalidTokenContractLength();
         }
