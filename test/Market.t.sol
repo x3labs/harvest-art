@@ -111,8 +111,9 @@ contract MarketTest is Test {
     }
 
     function test_startAuctionERC721_RevertIf_MaxTokensPerTxReached() public {
+        market.setMaxTokens(10);
         vm.startPrank(user1);
-        uint256[] memory manyTokenIds = new uint256[](1001);
+        uint256[] memory manyTokenIds = new uint256[](11);
         vm.expectRevert(bytes4(keccak256("MaxTokensPerTxReached()")));
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), manyTokenIds);
     }
@@ -195,10 +196,11 @@ contract MarketTest is Test {
     }
 
     function test_startAuctionERC1155_RevertIf_MaxTokensPerTxReached() public {
-        uint256[] memory manyTokenIds = new uint256[](1001);
-        uint256[] memory manyAmounts = new uint256[](1001);
+        market.setMaxTokens(10);
+        uint256[] memory manyTokenIds = new uint256[](11);
+        uint256[] memory manyAmounts = new uint256[](11);
 
-        for (uint256 i; i < 1001; i++) {
+        for (uint256 i; i < 11; i++) {
             manyTokenIds[i] = i;
             manyAmounts[i] = 1;
         }

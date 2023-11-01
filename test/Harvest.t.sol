@@ -63,11 +63,13 @@ contract HarvestTest is Test {
     }
 
     function test_batchTransfer_RevertIf_ExceedMaxTokensPerTx() public {
-        address[] memory tokenContracts = new address[](110);
-        uint256[] memory tokenIds = new uint256[](110);
-        uint256[] memory counts = new uint256[](110);
+        harvest.setMaxTokensPerTx(10);
 
-        for (uint256 i; i < 110; i++) {
+        address[] memory tokenContracts = new address[](11);
+        uint256[] memory tokenIds = new uint256[](11);
+        uint256[] memory counts = new uint256[](11);
+
+        for (uint256 i; i < 11; i++) {
             tokenContracts[i] = address(mock721);
             tokenIds[i] = i;
             counts[i] = 0;
