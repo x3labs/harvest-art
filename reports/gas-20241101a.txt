@@ -1,0 +1,59 @@
+| src/BidTicket.sol:BidTicket contract |                 |       |        |       |         |
+|--------------------------------------|-----------------|-------|--------|-------|---------|
+| Deployment Cost                      | Deployment Size |       |        |       |         |
+| 1397806                              | 7476            |       |        |       |         |
+| Function Name                        | min             | avg   | median | max   | # calls |
+| balanceOf                            | 504             | 938   | 504    | 2504  | 23      |
+| burn                                 | 1331            | 9455  | 10993  | 10993 | 65      |
+| burnBatch                            | 3156            | 5200  | 6170   | 6275  | 3       |
+| harvestContract                      | 374             | 374   | 374    | 374   | 1       |
+| marketContract                       | 638             | 638   | 638    | 638   | 1       |
+| mint                                 | 4684            | 29212 | 28354  | 32354 | 141     |
+| mintBatch                            | 5335            | 29201 | 34401  | 34401 | 6       |
+| setHarvestContract                   | 4952            | 22292 | 22852  | 22852 | 32      |
+| setMarketContract                    | 5150            | 22829 | 23050  | 23050 | 81      |
+| setURI                               | 73292           | 73292 | 73292  | 73292 | 1       |
+| uri                                  | 1683            | 1683  | 1683   | 1683  | 1       |
+
+
+| src/Harvest.sol:Harvest contract |                 |        |        |        |         |
+|----------------------------------|-----------------|--------|--------|--------|---------|
+| Deployment Cost                  | Deployment Size |        |        |        |         |
+| 651296                           | 2899            |        |        |        |         |
+| Function Name                    | min             | avg    | median | max    | # calls |
+| batchTransfer                    | 752             | 153324 | 111051 | 564911 | 8       |
+| setBarn                          | 4687            | 5153   | 4687   | 7487   | 6       |
+| setBidTicketAddress              | 4951            | 4951   | 4951   | 4951   | 1       |
+| setBidTicketTokenId              | 4579            | 4579   | 4579   | 4579   | 1       |
+| setDefaultPrice                  | 4664            | 4664   | 4664   | 4664   | 1       |
+| setMaxTokensPerTx                | 7574            | 7574   | 7574   | 7574   | 2       |
+| setPriceByContract               | 22856           | 23856  | 23856  | 24856  | 2       |
+| withdrawBalance                  | 2440            | 5918   | 5918   | 9396   | 2       |
+
+
+| src/Market.sol:Market contract |                 |        |        |        |         |
+|--------------------------------|-----------------|--------|--------|--------|---------|
+| Deployment Cost                | Deployment Size |        |        |        |         |
+| 1619875                        | 7011            |        |        |        |         |
+| Function Name                  | min             | avg    | median | max    | # calls |
+| abandon                        | 1538            | 12758  | 5585   | 23886  | 9       |
+| abandonmentFeePercent          | 794             | 794    | 794    | 794    | 1       |
+| auctions                       | 1139            | 1139   | 1139   | 1139   | 15      |
+| bid                            | 569             | 14800  | 18252  | 24052  | 14      |
+| claim                          | 547             | 75815  | 74599  | 151166 | 11      |
+| getAuctionTokens               | 3494            | 3765   | 3765   | 4037   | 2       |
+| minBidIncrement                | 2398            | 2398   | 2398   | 2398   | 1       |
+| nextAuctionId                  | 1058            | 2200   | 3058   | 3058   | 21      |
+| refund                         | 506             | 6740   | 7209   | 11512  | 10      |
+| setAbandonmentFeePercent       | 2932            | 5434   | 5434   | 7937   | 2       |
+| setAuctionDuration             | 2844            | 3946   | 3946   | 5049   | 2       |
+| setBarnAddress                 | 2961            | 5478   | 5478   | 7996   | 2       |
+| setBidTicketAddress            | 3049            | 5575   | 5575   | 8102   | 2       |
+| setBidTicketTokenId            | 2492            | 4994   | 4994   | 7497   | 2       |
+| setMaxTokens                   | 2338            | 6091   | 7343   | 7343   | 4       |
+| setMinBidIncrement             | 7563            | 7563   | 7563   | 7563   | 2       |
+| setMinStartPrice               | 7695            | 7695   | 7695   | 7695   | 1       |
+| setSettlementDuration          | 2514            | 3616   | 3616   | 4719   | 2       |
+| startAuctionERC1155            | 3501            | 174009 | 287551 | 298051 | 7       |
+| startAuctionERC721             | 2631            | 200911 | 229254 | 230254 | 46      |
+| withdraw                       | 1370            | 5979   | 3574   | 13053  | 7       |

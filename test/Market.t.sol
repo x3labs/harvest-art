@@ -66,7 +66,7 @@ contract MarketTest is Test {
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 95);
 
-        (, address tokenAddress,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (, address tokenAddress,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(tokenAddress, address(mock721));
         assertEq(highestBidder, user1);
@@ -87,7 +87,7 @@ contract MarketTest is Test {
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 95);
 
-        (, address tokenAddress,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (, address tokenAddress,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(tokenAddress, address(mock721));
         assertEq(highestBidder, user1);
@@ -170,7 +170,7 @@ contract MarketTest is Test {
         assertEq(market.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 95);
 
-        (, address tokenAddress,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (, address tokenAddress,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(tokenAddress, address(mock1155));
         assertEq(highestBidder, user1);
@@ -227,7 +227,7 @@ contract MarketTest is Test {
         assertEq(bidTicket.balanceOf(user1, 1), 95);
         assertEq(bidTicket.balanceOf(user2, 1), 99);
 
-        (,,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(highestBidder, user2, "Highest bidder should be this contract");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
@@ -242,7 +242,7 @@ contract MarketTest is Test {
         market.bid{value: 0.06 ether}(1);
         assertEq(bidTicket.balanceOf(user1, 1), 94);
 
-        (,,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(highestBidder, user1, "Highest bidder should be this contract");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
@@ -252,13 +252,13 @@ contract MarketTest is Test {
         vm.startPrank(user1);
 
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
-        (,, uint256 endTimeA,,,,,,,) = market.auctions(1);
+        (,, uint256 endTimeA,,,,) = market.auctions(1);
 
         skip(60 * 60 * 24 * 7 - 59 * 59); // 1 second before auction ends
 
         market.bid{value: 0.06 ether}(1);
 
-        (,, uint256 endTimeB,,,,,,,) = market.auctions(1);
+        (,, uint256 endTimeB,,,,) = market.auctions(1);
 
         assertLt(endTimeA, endTimeB, "New endtime should be greater than old endtime");
     }
@@ -302,7 +302,7 @@ contract MarketTest is Test {
         assertEq(bidTicket.balanceOf(user1, 1), 95);
         assertEq(bidTicket.balanceOf(user2, 1), 99);
 
-        (,,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
+        (,,,,, address highestBidder, uint256 highestBid) = market.auctions(1);
 
         assertEq(highestBidder, user2, "Highest bidder should be this contract");
         assertEq(highestBid, _bidB, "Highest bid should be 0.06 ether");
@@ -321,7 +321,7 @@ contract MarketTest is Test {
         vm.startPrank(user2);
         market.bid{value: 0.06 ether}(auctionId);
 
-        (,,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(auctionId);
+        (,,,,, address highestBidder, uint256 highestBid) = market.auctions(auctionId);
 
         assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
         assertEq(user2.balance, 0.94 ether, "user2 should have 0.95 ether");
@@ -351,7 +351,7 @@ contract MarketTest is Test {
         vm.startPrank(user2);
         market.bid{value: 0.06 ether}(auctionId);
 
-        (,,,,,,,, address highestBidder, uint256 highestBid) = market.auctions(auctionId);
+        (,,,,, address highestBidder, uint256 highestBid) = market.auctions(auctionId);
 
         assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
         assertEq(user2.balance, 0.94 ether, "user2 should have 0.95 ether");
@@ -442,8 +442,8 @@ contract MarketTest is Test {
         market.refund(auctionId);
         assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
 
-        (,,,,,, bool refunded,,,) = market.auctions(auctionId);
-        assertEq(refunded, true, "Auction should be marked as refunded");
+        (,,,, Status status,,) = market.auctions(auctionId);
+        assertTrue(status == Status.Refunded, "Auction should be marked as refunded");
     }
 
     function test_refund_RevertIf_AuctionActive() public {
@@ -522,8 +522,8 @@ contract MarketTest is Test {
             "user1 should have 1 ether - fee"
         );
 
-        (,,,,,,, bool abandoned,,) = market.auctions(auctionId);
-        assertEq(abandoned, true, "Auction should be marked as abandoned");
+        (,,,, Status status,,) = market.auctions(auctionId);
+        assertTrue(status == Status.Abandoned, "Auction should be marked as abandoned");
     }
 
     function test_abandon_RevertIf_AuctionActive() public {
@@ -596,8 +596,8 @@ contract MarketTest is Test {
         vm.startPrank(address(this));
         market.withdraw(auctionIds);
 
-        (,,,,, bool withdrawn,,,,) = market.auctions(auctionId);
-        assertTrue(withdrawn, "Auction should be marked as withdrawn");
+        (,,,, Status status,,) = market.auctions(auctionId);
+        assertTrue(status == Status.Withdrawn, "Auction should be marked as withdrawn");
     }
 
     function test_withdraw_RevertIf_ActiveAuction() public {
@@ -685,7 +685,7 @@ contract MarketTest is Test {
         vm.startPrank(user1);
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
-        (, address tokenAddress,,,,,,,,) = market.auctions(1);
+        (, address tokenAddress,,,,,) = market.auctions(1);
         assertEq(tokenAddress, address(mock721));
 
         (uint256[] memory _tokenIds, uint256[] memory _amounts) = market.getAuctionTokens(1);
@@ -702,7 +702,7 @@ contract MarketTest is Test {
         vm.startPrank(user1);
         market.startAuctionERC1155{value: 0.05 ether}(address(mock1155), tokenIds, tokenIdAmounts);
 
-        (, address tokenAddress,,,,,,,,) = market.auctions(1);
+        (, address tokenAddress,,,,,) = market.auctions(1);
         assertEq(tokenAddress, address(mock1155));
 
         (uint256[] memory _tokenIds, uint256[] memory _amounts) = market.getAuctionTokens(1);

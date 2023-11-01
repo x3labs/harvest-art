@@ -17,18 +17,20 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "solady/src/auth/Ownable.sol";
 import "./IBidTicket.sol";
 
-// enum Status {Active, Claimed, Refunded, Abandoned, Withdrawn}
+enum Status {
+    Active,
+    Claimed,
+    Refunded,
+    Abandoned,
+    Withdrawn
+}
 
 struct Auction {
     uint8 auctionType;
     address tokenAddress;
     uint64 endTime;
     uint8 tokenCount;
-    // Status status;
-    bool claimed;
-    bool withdrawn;
-    bool refunded;
-    bool abandonded;
+    Status status;
     address highestBidder;
     uint256 highestBid;
     mapping(uint256 => uint256) tokenIds;
@@ -67,9 +69,7 @@ contract Market is Ownable {
     error BidTooLow();
     error InvalidLengthOfAmounts();
     error InvalidLengthOfTokenIds();
-    error InvalidTokenAddress();
     error MaxTokensPerTxReached();
-    error NotApproved();
     error NotEnoughTokensInSupply();
     error NotHighestBidder();
     error SettlementPeriodActive();
@@ -200,12 +200,12 @@ contract Market is Ownable {
             revert AuctionEnded();
         }
 
-        if (msg.value < auction.highestBid + minBidIncrement) {
-            revert BidTooLow();
-        }
-
         if (block.timestamp >= auction.endTime - 1 hours) {
             auction.endTime += 1 hours;
+        }
+
+        if (msg.value < auction.highestBid + minBidIncrement) {
+            revert BidTooLow();
         }
 
         address prevHighestBidder = auction.highestBidder;
@@ -242,19 +242,17 @@ contract Market is Ownable {
             revert NotHighestBidder();
         }
 
-        if (auction.refunded) {
-            revert AuctionRefunded();
+        if (auction.status != Status.Active) {
+            if (auction.status == Status.Refunded) {
+                revert AuctionRefunded();
+            } else if (auction.status == Status.Claimed) {
+                revert AuctionClaimed();
+            } else if (auction.status == Status.Abandoned) {
+                revert AuctionAbandoned();
+            }
         }
 
-        if (auction.claimed) {
-            revert AuctionClaimed();
-        }
-
-        if (auction.abandonded) {
-            revert AuctionAbandoned();
-        }
-
-        auction.claimed = true;
+        auction.status = Status.Claimed;
 
         if (auction.auctionType == AUCTION_TYPE_ERC721) {
             _transferERC721s(auction);
@@ -286,15 +284,15 @@ contract Market is Ownable {
             revert NotHighestBidder();
         }
 
-        if (auction.refunded) {
-            revert AuctionRefunded();
+        if (auction.status != Status.Active) {
+            if (auction.status == Status.Refunded) {
+                revert AuctionRefunded();
+            } else if (auction.status == Status.Claimed) {
+                revert AuctionClaimed();
+            }
         }
 
-        if (auction.claimed) {
-            revert AuctionClaimed();
-        }
-
-        auction.refunded = true;
+        auction.status = Status.Refunded;
 
         (bool success,) = payable(msg.sender).call{value: auction.highestBid}("");
         if (!success) revert TransferFailed();
@@ -320,19 +318,17 @@ contract Market is Ownable {
             revert SettlementPeriodActive();
         }
 
-        if (auction.abandonded) {
-            revert AuctionAbandoned();
+        if (auction.status != Status.Active) {
+            if (auction.status == Status.Abandoned) {
+                revert AuctionAbandoned();
+            } else if (auction.status == Status.Refunded) {
+                revert AuctionRefunded();
+            } else if (auction.status == Status.Claimed) {
+                revert AuctionClaimed();
+            }
         }
 
-        if (auction.refunded) {
-            revert AuctionRefunded();
-        }
-
-        if (auction.claimed) {
-            revert AuctionClaimed();
-        }
-
-        auction.abandonded = true;
+        auction.status = Status.Abandoned;
 
         uint256 fee = auction.highestBid * abandonmentFeePercent / 100;
 
@@ -360,16 +356,14 @@ contract Market is Ownable {
         for (uint256 i; i < auctionIds.length;) {
             Auction storage auction = auctions[auctionIds[i]];
 
-            if (auction.withdrawn) {
-                revert AuctionWithdrawn();
-            }
-
-            if (auction.refunded) {
-                revert AuctionRefunded();
-            }
-
-            if (auction.abandonded) {
-                revert AuctionAbandoned();
+            if (auction.status != Status.Active) {
+                if (auction.status == Status.Withdrawn) {
+                    revert AuctionWithdrawn();
+                } else if (auction.status == Status.Refunded) {
+                    revert AuctionRefunded();
+                } else if (auction.status == Status.Abandoned) {
+                    revert AuctionAbandoned();
+                }
             }
 
             if (block.timestamp <= auction.endTime) {
@@ -381,7 +375,7 @@ contract Market is Ownable {
             }
 
             totalAmount += auction.highestBid;
-            auction.withdrawn = true;
+            auction.status = Status.Withdrawn;
 
             unchecked {
                 ++i;
