@@ -42,11 +42,13 @@ contract Harvest is Ownable {
     function batchTransfer(address[] calldata tokenContracts, uint256[] calldata tokenIds, uint256[] calldata counts)
         external
     {
-        if (tokenContracts.length == 0) {
+        uint256 length = tokenContracts.length;
+
+        if (length == 0) {
             revert InvalidTokenContractLength();
         }
 
-        if (tokenContracts.length != tokenIds.length || tokenIds.length != counts.length) {
+        if (length != tokenIds.length || length != counts.length) {
             revert InvalidParamsLength();
         }
 
@@ -54,20 +56,22 @@ contract Harvest is Ownable {
         uint256 totalPrice;
         uint256 _defaultPrice = defaultPrice;
 
-        for (uint256 i; i < tokenContracts.length;) {
+        for (uint256 i; i < length;) {
             address tokenContract = tokenContracts[i];
+            uint256 tokenId = tokenIds[i];
+            uint256 count = counts[i];
 
-            if (counts[i] == 0) {
+            if (count == 0) {
                 unchecked {
                     ++totalTokens;
                 }
 
                 totalPrice += _getPrice(_defaultPrice, tokenContract);
-                IERC721(tokenContract).transferFrom(msg.sender, theBarn, tokenIds[i]);
+                IERC721(tokenContract).transferFrom(msg.sender, theBarn, tokenId);
             } else {
-                totalTokens += counts[i];
-                totalPrice += _getPrice(_defaultPrice, tokenContract) * counts[i];
-                IERC1155(tokenContract).safeTransferFrom(msg.sender, theBarn, tokenIds[i], counts[i], "");
+                totalTokens += count;
+                totalPrice += _getPrice(_defaultPrice, tokenContract) * count;
+                IERC1155(tokenContract).safeTransferFrom(msg.sender, theBarn, tokenId, count, "");
             }
 
             unchecked {
