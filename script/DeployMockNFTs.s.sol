@@ -5,15 +5,22 @@ import "forge-std/Script.sol";
 import "../test/lib/Mock721.sol";
 import "../test/lib/Mock1155.sol";
 
-contract DeployMockNFTsScript is Script {
-    function setUp() public {}
+contract DeployMockNFTs is Script {
+    Mock721 mock721;
+    Mock1155 mock1155;
 
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
-        new Mock721();
-        new Mock1155();
+        mock721 = new Mock721();
+        mock721.mint(vm.envAddress("ADDRESS_TESTNET_WALLET_A"), 10);
+        mock721.mint(vm.envAddress("ADDRESS_TESTNET_WALLET_B"), 10);
+        mock721.mint(vm.envAddress("ADDRESS_BARN"), 10);
+
+        mock1155 = new Mock1155();
+        mock1155.mint(vm.envAddress("ADDRESS_TESTNET_WALLET_A"), 1, 10, "");
+        mock1155.mint(vm.envAddress("ADDRESS_TESTNET_WALLET_B"), 1, 10, "");
+        mock1155.mint(vm.envAddress("ADDRESS_BARN"), 1, 10, "");
 
         vm.stopBroadcast();
     }

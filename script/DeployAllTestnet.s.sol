@@ -16,10 +16,13 @@ contract DeployAllTestnet is Script {
 
     function run() external {
         vm.startBroadcast();
-
         bidTicket = new BidTicket();
         harvest = new Harvest(vm.envAddress("ADDRESS_BARN"), address(bidTicket));
         market = new Market(vm.envAddress("ADDRESS_BARN"), address(bidTicket));
+
+        console.log("BidTicket: ", address(bidTicket));
+        console.log("Harvest: ", address(harvest));
+        console.log("Market: ", address(market));
 
         bidTicket.setHarvestContract(address(harvest));
         bidTicket.setMarketContract(address(market));
@@ -30,11 +33,12 @@ contract DeployAllTestnet is Script {
         market.setMinStartPrice(0.001 ether);
         market.setMinBidIncrement(0.001 ether);
         market.setAuctionDuration(1 hours);
-
         vm.stopBroadcast();
 
-        console.log("BidTicket: ", address(bidTicket));
-        console.log("Harvest: ", address(harvest));
-        console.log("Market: ", address(market));
+        console.log("BidTicket Harvest: ", bidTicket.harvestContract());
+        console.log("BidTicket Market: ", bidTicket.marketContract());
+        console.log("Market MinStartPrice: ", market.minStartPrice());
+        console.log("Market MinBidIncrement: ", market.minBidIncrement());
+        console.log("Market AuctionDuration: ", market.auctionDuration());
     }
 }
