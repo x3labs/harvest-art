@@ -75,7 +75,7 @@ contract Market is Ownable {
     error MaxTokensPerTxReached();
     error NotEnoughTokensInSupply();
     error NotHighestBidder();
-    error SettlementPeriodActive();
+    error SettlementPeriodNotExpired();
     error SettlementPeriodEnded();
     error StartPriceTooLow();
     error TokenAlreadyInAuction();
@@ -274,12 +274,14 @@ contract Market is Ownable {
      */
     function refund(uint256 auctionId) external {
         Auction storage auction = auctions[auctionId];
+        uint256 highestBid = auction.highestBid;
+        uint256 endTime = auction.endTime;
 
-        if (block.timestamp < auction.endTime) {
+        if (block.timestamp < endTime) {
             revert AuctionActive();
         }
 
-        if (block.timestamp > auction.endTime + settlementDuration) {
+        if (block.timestamp > endTime + settlementDuration) {
             revert SettlementPeriodEnded();
         }
 
@@ -295,24 +297,18 @@ contract Market is Ownable {
             }
         }
 
-        auction.status = Status.Refunded;
-
         if (auction.auctionType == AUCTION_TYPE_ERC721) {
-            if (IERC721(auction.tokenAddress).isApprovedForAll(theBarn, address(this))) {
-                revert AuctionIsApproved();
-            }
-            _resetERC721s(auction);
+            _checkAndResetERC721s(auction);
         } else {
-            if (IERC1155(auction.tokenAddress).isApprovedForAll(theBarn, address(this))) {
-                revert AuctionIsApproved();
-            }
-            _resetERC1155s(auction);
+            _checkAndResetERC1155s(auction);
         }
 
-        (bool success,) = payable(msg.sender).call{value: auction.highestBid}("");
+        auction.status = Status.Refunded;
+
+        (bool success,) = payable(msg.sender).call{value: highestBid}("");
         if (!success) revert TransferFailed();
 
-        emit Claimed(auctionId, msg.sender);
+        emit Refunded(auctionId, msg.sender, highestBid);
     }
 
     /**
@@ -324,13 +320,11 @@ contract Market is Ownable {
      */
     function abandon(uint256 auctionId) external onlyOwner {
         Auction storage auction = auctions[auctionId];
-
-        if (block.timestamp < auction.endTime) {
-            revert AuctionActive();
-        }
+        address highestBidder = auction.highestBidder;
+        uint256 highestBid = auction.highestBid;
 
         if (block.timestamp < auction.endTime + settlementDuration) {
-            revert SettlementPeriodActive();
+            revert SettlementPeriodNotExpired();
         }
 
         if (auction.status != Status.Active) {
@@ -351,15 +345,15 @@ contract Market is Ownable {
             _resetERC1155s(auction);
         }
 
-        uint256 fee = auction.highestBid * ABANDONMENT_FEE_PERCENT / 100;
+        uint256 fee = highestBid * ABANDONMENT_FEE_PERCENT / 100;
 
-        (bool success,) = payable(auction.highestBidder).call{value: auction.highestBid - fee}("");
+        (bool success,) = payable(highestBidder).call{value: highestBid - fee}("");
         if (!success) revert TransferFailed();
 
         (success,) = payable(msg.sender).call{value: fee}("");
         if (!success) revert TransferFailed();
 
-        emit Abandoned(auctionId, auction.highestBidder, fee);
+        emit Abandoned(auctionId, highestBidder, fee);
     }
 
     /**
@@ -623,6 +617,63 @@ contract Market is Ownable {
             unchecked {
                 ++i;
             }
+        }
+    }
+
+    function _checkAndResetERC721s(Auction storage auction) internal {
+        address tokenAddress = auction.tokenAddress;
+        uint256 tokenCount = auction.tokenCount;
+
+        mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
+        mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
+
+        bool notRefundable = IERC721(tokenAddress).isApprovedForAll(theBarn, address(this));
+
+        for (uint256 i; i < tokenCount;) {
+            uint256 tokenId = tokenMap[i];
+            auctionTokens[tokenId] = false;
+
+            notRefundable = notRefundable && (IERC721(tokenAddress).ownerOf(tokenId) == theBarn);
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        if(notRefundable) {
+            revert AuctionIsApproved();
+        }
+    }
+
+    function _checkAndResetERC1155s(Auction storage auction) internal {
+        address tokenAddress = auction.tokenAddress;
+        uint256 tokenCount = auction.tokenCount;
+        uint256[] memory tokenIds = new uint256[](tokenCount);
+        uint256[] memory amounts = new uint256[](tokenCount);
+
+        mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
+        mapping(uint256 => uint256) storage amountMap = auction.amounts;
+        mapping(uint256 => uint256) storage auctionTokens = auctionTokensERC1155[tokenAddress];
+
+        bool notRefundable = IERC1155(tokenAddress).isApprovedForAll(theBarn, address(this));
+
+        for (uint256 i; i < tokenCount;) {
+            uint256 tokenId = tokenMap[i];
+            uint256 amount = amountMap[i];
+
+            tokenIds[i] = tokenId;
+            amounts[i] = amount;
+            auctionTokens[tokenId] -= amount;
+
+            notRefundable = notRefundable && (IERC1155(tokenAddress).balanceOf(theBarn, tokenId) >= amount);
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        if(notRefundable) {
+            revert AuctionIsApproved();
         }
     }
 }
