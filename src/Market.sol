@@ -53,7 +53,8 @@ contract Market is Ownable {
     uint256 public minBidIncrement = 0.01 ether;
     uint256 public auctionDuration = 7 days;
     uint256 public settlementDuration = 7 days;
-    uint256 public abandonmentFeePercent = 20;
+
+    uint256 public constant ABANDONMENT_FEE_PERCENT = 20;
 
     mapping(uint256 => Auction) public auctions;
     mapping(address => mapping(uint256 => bool)) public auctionTokensERC721;
@@ -63,6 +64,8 @@ contract Market is Ownable {
     error AuctionActive();
     error AuctionClaimed();
     error AuctionEnded();
+    error AuctionIsApproved();
+    error AuctionNotClaimed();
     error AuctionNotEnded();
     error AuctionRefunded();
     error AuctionWithdrawn();
@@ -264,7 +267,7 @@ contract Market is Ownable {
     }
 
     /**
-     * refund - Get a refund during the settlement period for any reason
+     * refund - Refunds are available during the settlement period if The Barn has not yet approved the collection
      *
      * @param auctionId - The id of the auction to refund
      *
@@ -293,6 +296,18 @@ contract Market is Ownable {
         }
 
         auction.status = Status.Refunded;
+
+        if (auction.auctionType == AUCTION_TYPE_ERC721) {
+            if (IERC721(auction.tokenAddress).isApprovedForAll(theBarn, address(this))) {
+                revert AuctionIsApproved();
+            }
+            _resetERC721s(auction);
+        } else {
+            if (IERC1155(auction.tokenAddress).isApprovedForAll(theBarn, address(this))) {
+                revert AuctionIsApproved();
+            }
+            _resetERC1155s(auction);
+        }
 
         (bool success,) = payable(msg.sender).call{value: auction.highestBid}("");
         if (!success) revert TransferFailed();
@@ -330,7 +345,13 @@ contract Market is Ownable {
 
         auction.status = Status.Abandoned;
 
-        uint256 fee = auction.highestBid * abandonmentFeePercent / 100;
+        if (auction.auctionType == AUCTION_TYPE_ERC721) {
+            _resetERC721s(auction);
+        } else {
+            _resetERC1155s(auction);
+        }
+
+        uint256 fee = auction.highestBid * ABANDONMENT_FEE_PERCENT / 100;
 
         (bool success,) = payable(auction.highestBidder).call{value: auction.highestBid - fee}("");
         if (!success) revert TransferFailed();
@@ -342,7 +363,7 @@ contract Market is Ownable {
     }
 
     /**
-     * withdraw - Withdraws the highest bid from an auction
+     * withdraw - Withdraws the highest bid from claimed auctions
      *
      * @param auctionIds - The ids of the auctions to withdraw from
      *
@@ -356,22 +377,8 @@ contract Market is Ownable {
         for (uint256 i; i < auctionIds.length;) {
             Auction storage auction = auctions[auctionIds[i]];
 
-            if (auction.status != Status.Active) {
-                if (auction.status == Status.Withdrawn) {
-                    revert AuctionWithdrawn();
-                } else if (auction.status == Status.Refunded) {
-                    revert AuctionRefunded();
-                } else if (auction.status == Status.Abandoned) {
-                    revert AuctionAbandoned();
-                }
-            }
-
-            if (block.timestamp <= auction.endTime) {
-                revert AuctionActive();
-            }
-
-            if (block.timestamp <= auction.endTime + settlementDuration) {
-                revert SettlementPeriodActive();
+            if (auction.status != Status.Claimed) {
+                revert AuctionNotClaimed();
             }
 
             totalAmount += auction.highestBid;
@@ -446,10 +453,6 @@ contract Market is Ownable {
 
     function setSettlementDuration(uint256 settlementDuration_) external onlyOwner {
         settlementDuration = settlementDuration_;
-    }
-
-    function setAbandonmentFeePercent(uint256 abandonmentFeePercent_) external onlyOwner {
-        abandonmentFeePercent = abandonmentFeePercent_;
     }
 
     /**
@@ -537,13 +540,12 @@ contract Market is Ownable {
 
     function _transferERC721s(Auction storage auction) internal {
         address tokenAddress = auction.tokenAddress;
+        uint256 tokenCount = auction.tokenCount;
         address highestBidder = auction.highestBidder;
         IERC721 erc721Contract = IERC721(tokenAddress);
 
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
         mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
-
-        uint256 tokenCount = auction.tokenCount;
 
         for (uint256 i; i < tokenCount;) {
             uint256 tokenId = tokenMap[i];
@@ -581,5 +583,46 @@ contract Market is Ownable {
         }
 
         erc1155Contract.safeBatchTransferFrom(theBarn, auction.highestBidder, tokenIds, amounts, "");
+    }
+
+    function _resetERC721s(Auction storage auction) internal {
+        address tokenAddress = auction.tokenAddress;
+        uint256 tokenCount = auction.tokenCount;
+
+        mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
+        mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
+
+        for (uint256 i; i < tokenCount;) {
+            uint256 tokenId = tokenMap[i];
+            auctionTokens[tokenId] = false;
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function _resetERC1155s(Auction storage auction) internal {
+        address tokenAddress = auction.tokenAddress;
+        uint256 tokenCount = auction.tokenCount;
+        uint256[] memory tokenIds = new uint256[](tokenCount);
+        uint256[] memory amounts = new uint256[](tokenCount);
+
+        mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
+        mapping(uint256 => uint256) storage amountMap = auction.amounts;
+        mapping(uint256 => uint256) storage auctionTokens = auctionTokensERC1155[tokenAddress];
+
+        for (uint256 i; i < tokenCount;) {
+            uint256 tokenId = tokenMap[i];
+            uint256 amount = amountMap[i];
+
+            tokenIds[i] = tokenId;
+            amounts[i] = amount;
+            auctionTokens[tokenId] -= amount;
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 }
