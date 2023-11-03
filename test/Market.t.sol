@@ -618,7 +618,7 @@ contract MarketTest is Test {
         vm.prank(user1);
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
-        vm.expectRevert(bytes4(keccak256("AuctionActive()")));
+        vm.expectRevert(bytes4(keccak256("SettlementPeriodNotExpired()")));
         market.abandon(1);
     }
 
@@ -628,7 +628,7 @@ contract MarketTest is Test {
 
         skip(60 * 60 * 24 * 7 + 1);
 
-        vm.expectRevert(bytes4(keccak256("SettlementPeriodActive()")));
+        vm.expectRevert(bytes4(keccak256("SettlementPeriodNotExpired()")));
         market.abandon(1);
     }
 
