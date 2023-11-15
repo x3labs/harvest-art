@@ -146,6 +146,13 @@ contract BidTicketTest is Test {
         assertEq(bidTicket.uri(1), newURI, "Token URI should be updated");
     }
 
+    function test_setURI_RevertIf_NotOwner() public {
+        vm.startPrank(user1);
+        try bidTicket.setURI(1, "https://newuri.example.com/api/token/{id}.json") {
+            fail("Should revert if anyone else tries to setURI");
+        } catch {}
+    }
+
     function test_setHarvestContract_Success() public {
         bidTicket.setHarvestContract(address(mockHarvest));
         assertEq(bidTicket.harvestContract(), address(mockHarvest), "Harvest contract should be updated");

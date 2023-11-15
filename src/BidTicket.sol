@@ -16,9 +16,10 @@ import "ERC1155P/contracts/ERC1155P.sol";
 import "solady/src/auth/Ownable.sol";
 import "./IBidTicket.sol";
 
-contract BidTicket is ERC1155P("BidTicket", "TCKT"), Ownable, IBidTicket {
+contract BidTicket is ERC1155P, Ownable, IBidTicket {
     address public harvestContract;
     address public marketContract;
+    mapping(uint256 => string) private _tokenURIs;
 
     error NotAuthorized();
 
@@ -44,18 +45,23 @@ contract BidTicket is ERC1155P("BidTicket", "TCKT"), Ownable, IBidTicket {
         _initializeOwner(msg.sender);
     }
 
-    function setURI(uint256 tokenId, string calldata tokenURI) external virtual onlyOwner {
-        _setURI(tokenId, tokenURI);
+    function name() public view virtual override returns (string memory) {
+        return "BidTicket";
+    }
+
+    function symbol() public view virtual override returns (string memory) {
+        return "TCKT";
+    }
+
+    function uri(uint256 id) public view virtual override returns (string memory) {
+        return _tokenURIs[id];
     }
 
     function mint(address to, uint256 id, uint256 amount) external virtual onlyMinters {
         _mint(to, id, amount, "");
     }
 
-    function mintBatch(address to, uint256[] calldata ids, uint256[] calldata amounts)
-        public
-        onlyMinters
-    {
+    function mintBatch(address to, uint256[] calldata ids, uint256[] calldata amounts) public onlyMinters {
         _mintBatch(to, ids, amounts, "");
     }
 
@@ -65,6 +71,11 @@ contract BidTicket is ERC1155P("BidTicket", "TCKT"), Ownable, IBidTicket {
 
     function burnBatch(address from, uint256[] calldata ids, uint256[] calldata amounts) external onlyBurners {
         _burnBatch(from, ids, amounts);
+    }
+
+    function setURI(uint256 tokenId, string calldata tokenURI) external virtual onlyOwner {
+        _tokenURIs[tokenId] = tokenURI;
+        emit URI(uri(tokenId), tokenId);
     }
 
     function setHarvestContract(address harvestContract_) external onlyOwner {
