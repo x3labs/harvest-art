@@ -434,6 +434,7 @@ contract MarketTest is Test {
     //
     function test_refund_Success_ERC721() public {
         uint256 auctionId = market.nextAuctionId();
+        market.setMaxTokens(50);
         vm.prank(theBarn);
         mock721.setApprovalForAll(address(market), false);
 
@@ -460,6 +461,7 @@ contract MarketTest is Test {
 
     function test_refund_Success_ERC1155() public {
         uint256 auctionId = market.nextAuctionId();
+        market.setMaxTokens(50);
         vm.prank(theBarn);
         mock1155.setApprovalForAll(address(market), false);
 
@@ -586,6 +588,7 @@ contract MarketTest is Test {
     function test_abandon_Success_ERC1155() public {
         uint256 auctionId = market.nextAuctionId();
         uint256 startingBid = 0.05 ether;
+        market.setMaxTokens(50);
 
         vm.prank(user1);
         market.startAuctionERC1155{value: startingBid}(address(mock1155), tokenIds, tokenIdAmounts);
@@ -776,6 +779,8 @@ contract MarketTest is Test {
     // getters/setters
     //
     function test_getAuctionTokens_Success_ERC721() public {
+        market.setMaxTokens(50);
+
         vm.startPrank(user1);
         market.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
 
@@ -793,6 +798,7 @@ contract MarketTest is Test {
     }
 
     function test_getAuctionTokens_Success_ERC1155() public {
+        market.setMaxTokens(50);
         vm.startPrank(user1);
         market.startAuctionERC1155{value: 0.05 ether}(address(mock1155), tokenIds, tokenIdAmounts);
 

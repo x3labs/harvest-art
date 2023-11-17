@@ -47,7 +47,7 @@ contract Market is Ownable {
     uint256 public bidTicketTokenId = 1;
     uint256 public bidTicketCostStart = 5;
     uint256 public bidTicketCostBid = 1;
-    uint256 public maxTokens = 50;
+    uint256 public maxTokens = 10;
     uint256 public nextAuctionId = 1;
     uint256 public minStartPrice = 0.05 ether;
     uint256 public minBidIncrement = 0.01 ether;
@@ -640,7 +640,7 @@ contract Market is Ownable {
             }
         }
 
-        if(notRefundable) {
+        if (notRefundable) {
             revert AuctionIsApproved();
         }
     }
@@ -672,7 +672,7 @@ contract Market is Ownable {
             }
         }
 
-        if(notRefundable) {
+        if (notRefundable) {
             revert AuctionIsApproved();
         }
     }
