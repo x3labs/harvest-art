@@ -30,14 +30,14 @@ contract DeployAllTestnet is Script {
         bidTicket.mint(vm.envAddress("ADDRESS_TESTNET_WALLET_A"), 1, 100);
         bidTicket.mint(vm.envAddress("ADDRESS_TESTNET_WALLET_B"), 1, 100);
 
-        market.setMinStartPrice(0.001 ether);
+        market.setMinStartingBid(0.001 ether);
         market.setMinBidIncrement(0.001 ether);
         market.setAuctionDuration(1 hours);
         vm.stopBroadcast();
 
         console.log("BidTicket Harvest: ", bidTicket.harvestContract());
         console.log("BidTicket Market: ", bidTicket.marketContract());
-        console.log("Market MinStartPrice: ", market.minStartPrice());
+        console.log("Market MinStartingBid: ", market.minStartingBid());
         console.log("Market MinBidIncrement: ", market.minBidIncrement());
         console.log("Market AuctionDuration: ", market.auctionDuration());
     }

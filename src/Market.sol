@@ -49,7 +49,7 @@ contract Market is Ownable {
     uint256 public bidTicketCostBid = 1;
     uint256 public maxTokens = 10;
     uint256 public nextAuctionId = 1;
-    uint256 public minStartPrice = 0.05 ether;
+    uint256 public minStartingBid = 0.05 ether;
     uint256 public minBidIncrement = 0.01 ether;
     uint256 public auctionDuration = 7 days;
     uint256 public settlementDuration = 7 days;
@@ -105,7 +105,7 @@ contract Market is Ownable {
      */
 
     function startAuctionERC721(address tokenAddress, uint256[] calldata tokenIds) external payable {
-        if (msg.value < minStartPrice) {
+        if (msg.value < minStartingBid) {
             revert StartPriceTooLow();
         }
 
@@ -153,7 +153,7 @@ contract Market is Ownable {
         external
         payable
     {
-        if (msg.value < minStartPrice) {
+        if (msg.value < minStartingBid) {
             revert StartPriceTooLow();
         }
 
@@ -433,8 +433,8 @@ contract Market is Ownable {
         maxTokens = maxTokens_;
     }
 
-    function setMinStartPrice(uint256 minStartPrice_) external onlyOwner {
-        minStartPrice = minStartPrice_;
+    function setMinStartingBid(uint256 minStartingBid_) external onlyOwner {
+        minStartingBid = minStartingBid_;
     }
 
     function setMinBidIncrement(uint256 minBidIncrement_) external onlyOwner {

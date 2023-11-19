@@ -815,8 +815,8 @@ contract MarketTest is Test {
         assertEq(_amounts[2], tokenIdAmounts[2]);
     }
 
-    function test_setMinStartPrice_Success() public {
-        market.setMinStartPrice(0.01 ether);
+    function test_setMinStartingBid_Success() public {
+        market.setMinStartingBid(0.01 ether);
 
         vm.startPrank(user1);
         market.startAuctionERC721{value: 0.01 ether}(address(mock721), tokenIds);
