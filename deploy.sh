@@ -14,7 +14,7 @@ anvil() {
         --optimize \
         --optimizer-runs 10000 \
         --gas-estimate-multiplier 200 \
-        --sender $DEPLOYER_ADDRESS \
+        --sender $ADDRESS_DEPLOYER \
         --interactives 1 \
         --broadcast
 }
@@ -27,8 +27,8 @@ testnet() {
         exit 1
     fi
 
-    if [ -z "$DEPLOYER_ADDRESS" ]; then
-        echo "Missing DEPLOYER_ADDRESS"
+    if [ -z "$ADDRESS_DEPLOYER" ]; then
+        echo "Missing ADDRESS_DEPLOYER"
         exit 1
     fi
 
@@ -39,7 +39,7 @@ testnet() {
         --optimizer-runs 10000 \
         --gas-estimate-multiplier 200 \
         --verify \
-        --sender "$DEPLOYER_ADDRESS" \
+        --sender "$ADDRESS_DEPLOYER" \
         --interactives 1 \
         --broadcast
 }
@@ -52,8 +52,8 @@ mainnet() {
         exit 1
     fi
 
-    if [ -z "$DEPLOYER_ADDRESS" ]; then
-        echo "Missing DEPLOYER_ADDRESS"
+    if [ -z "$ADDRESS_DEPLOYER" ]; then
+        echo "Missing ADDRESS_DEPLOYER"
         exit 1
     fi
 
@@ -64,7 +64,7 @@ mainnet() {
         --optimizer-runs 10000 \
         --gas-estimate-multiplier 200 \
         --verify \
-        --sender "$DEPLOYER_ADDRESS" \
+        --sender "$ADDRESS_DEPLOYER" \
         --interactives 1 \
         --broadcast
 }
