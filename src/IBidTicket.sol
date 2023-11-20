@@ -13,5 +13,5 @@ interface IBidTicket is IERC1155P {
     function burnBatch(address from, uint256[] calldata ids, uint256[] calldata amounts) external;
 
     function setHarvestContract(address harvestContract_) external;
-    function setMarketContract(address marketContract_) external;
+    function setAuctionsContract(address auctionsContract_) external;
 }

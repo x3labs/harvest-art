@@ -21,7 +21,7 @@ contract MockHarvestContract {
     }
 }
 
-contract MockMarketContract {
+contract MockAuctionsContract {
     BidTicket public bidTicket;
 
     constructor(address _bidTicketAddress) {
@@ -40,7 +40,7 @@ contract MockMarketContract {
 contract BidTicketTest is Test {
     BidTicket public bidTicket;
     MockHarvestContract public mockHarvest;
-    MockMarketContract public mockMarket;
+    MockAuctionsContract public mockAuctions;
     address public user1;
     address public user2;
     address public user3;
@@ -51,14 +51,14 @@ contract BidTicketTest is Test {
         bidTicket = new BidTicket();
 
         mockHarvest = new MockHarvestContract(address(bidTicket));
-        mockMarket = new MockMarketContract(address(bidTicket));
+        mockAuctions = new MockAuctionsContract(address(bidTicket));
 
         user1 = vm.addr(1);
         user2 = vm.addr(2);
         user3 = vm.addr(3);
 
         bidTicket.setHarvestContract(address(mockHarvest));
-        bidTicket.setMarketContract(address(mockMarket));
+        bidTicket.setAuctionsContract(address(mockAuctions));
 
         ids[0] = 1;
         amounts[0] = 100;
@@ -106,9 +106,9 @@ contract BidTicketTest is Test {
         assertEq(bidTicket.balanceOf(user1, 1), 50, "User1 should have 50 BidTickets after burning");
     }
 
-    function test_burn_Success_ByMarketContract() public {
+    function test_burn_Success_ByAuctionsContract() public {
         bidTicket.mint(user1, 1, 100);
-        mockMarket.mockBurn(user1, 1, 50);
+        mockAuctions.mockBurn(user1, 1, 50);
         assertEq(bidTicket.balanceOf(user1, 1), 50, "User1 should have 50 BidTickets after burning");
     }
 
@@ -126,9 +126,9 @@ contract BidTicketTest is Test {
         assertEq(bidTicket.balanceOf(user1, 1), 0, "User1 should have 0 BidTickets after burning");
     }
 
-    function test_burnBatch_Success_ByMarketContract() public {
+    function test_burnBatch_Success_ByAuctionsContract() public {
         bidTicket.mintBatch(user1, ids, amounts);
-        mockMarket.mockBurnBatch(user1, ids, amounts);
+        mockAuctions.mockBurnBatch(user1, ids, amounts);
         assertEq(bidTicket.balanceOf(user1, 1), 0, "User1 should have 0 BidTickets after burning");
     }
 
@@ -158,8 +158,8 @@ contract BidTicketTest is Test {
         assertEq(bidTicket.harvestContract(), address(mockHarvest), "Harvest contract should be updated");
     }
 
-    function test_setMarketContract_Success() public {
-        bidTicket.setMarketContract(address(mockMarket));
-        assertEq(bidTicket.marketContract(), address(mockMarket), "Market contract should be updated");
+    function test_setAuctionsContract_Success() public {
+        bidTicket.setAuctionsContract(address(mockAuctions));
+        assertEq(bidTicket.auctionsContract(), address(mockAuctions), "Auctions contract should be updated");
     }
 }

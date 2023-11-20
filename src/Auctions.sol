@@ -10,7 +10,7 @@ pragma solidity ^0.8.20;
 //   |---|---|---|---|---|    |--|--|    |  |
 //   |---|---|---|---|---|    |==|==|    |  |
 //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  _______  Harvest.art v3 (Market) _________
+//  _______  Harvest.art v3 (Auctions) _________
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -37,7 +37,7 @@ struct Auction {
     mapping(uint256 => uint256) amounts;
 }
 
-contract Market is Ownable {
+contract Auctions is Ownable {
     uint8 private constant AUCTION_TYPE_ERC721 = 0;
     uint8 private constant AUCTION_TYPE_ERC1155 = 1;
 

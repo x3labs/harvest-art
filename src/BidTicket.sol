@@ -18,7 +18,7 @@ import "./IBidTicket.sol";
 
 contract BidTicket is ERC1155P, Ownable, IBidTicket {
     address public harvestContract;
-    address public marketContract;
+    address public auctionsContract;
     mapping(uint256 => string) private _tokenURIs;
 
     error NotAuthorized();
@@ -33,7 +33,7 @@ contract BidTicket is ERC1155P, Ownable, IBidTicket {
     }
 
     modifier onlyBurners() {
-        if (msg.sender != marketContract) {
+        if (msg.sender != auctionsContract) {
             if (msg.sender != owner()) {
                 revert NotAuthorized();
             }
@@ -82,7 +82,7 @@ contract BidTicket is ERC1155P, Ownable, IBidTicket {
         harvestContract = harvestContract_;
     }
 
-    function setMarketContract(address marketContract_) external onlyOwner {
-        marketContract = marketContract_;
+    function setAuctionsContract(address auctionsContract_) external onlyOwner {
+        auctionsContract = auctionsContract_;
     }
 }
