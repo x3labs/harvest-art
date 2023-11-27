@@ -20,6 +20,7 @@ contract AuctionsTest is Test {
 
     uint256 public tokenCount = 10;
     uint256[] public tokenIds = [0, 1, 2];
+    uint256[] public tokenIdsOther = [3, 4, 5];
     uint256[] public tokenIdAmounts = [10, 10, 10];
     uint256[] public amounts = [1, 1, 1];
 
@@ -549,6 +550,34 @@ contract AuctionsTest is Test {
         auctions.claim(auctionId);
         vm.expectRevert(bytes4(keccak256("AuctionClaimed()")));
         auctions.refund(auctionId);
+    }
+
+    function test_refund_Exploit() public {
+        vm.startPrank(user1);
+        auctions.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIds);
+
+        // Start another auction to keep liquidity in contract
+        vm.startPrank(user2);
+        auctions.startAuctionERC721{value: 0.05 ether}(address(mock721), tokenIdsOther);
+
+        vm.startPrank(user1);
+        uint256 auctionId = auctions.nextAuctionId() - 2;
+        uint256[] memory auctionIds = new uint256[](1);
+        auctionIds[0] = auctionId;
+
+        skip(60 * 60 * 24 * 7 + 1);
+        auctions.claim(auctionId);
+
+        vm.startPrank(address(this));
+        auctions.withdraw(auctionIds);
+
+        (,,,, Status status,,) = auctions.auctions(auctionId);
+        assertTrue(status == Status.Withdrawn, "Auction should be marked as withdrawn");
+
+        vm.startPrank(user1);
+        vm.expectRevert(bytes4(keccak256("AuctionWithdrawn()")));
+        auctions.refund(auctionId);
+        // assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
     }
 
     //

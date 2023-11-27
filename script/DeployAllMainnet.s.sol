@@ -23,6 +23,7 @@ contract DeployAllMainnet is Script {
 
         bidTicket.setHarvestContract(address(harvest));
         bidTicket.setAuctionsContract(address(auctions));
+        bidTicket.setURI(1, vm.envString("BID_TICKET_URI"));
 
         vm.stopBroadcast();
 

@@ -199,7 +199,7 @@ contract Auctions is Ownable {
     function bid(uint256 auctionId) external payable {
         Auction storage auction = auctions[auctionId];
 
-        if (block.timestamp >= auction.endTime) {
+        if (block.timestamp > auction.endTime) {
             revert AuctionEnded();
         }
 
@@ -294,6 +294,8 @@ contract Auctions is Ownable {
                 revert AuctionRefunded();
             } else if (auction.status == Status.Claimed) {
                 revert AuctionClaimed();
+            } else if (auction.status == Status.Withdrawn) {
+                revert AuctionWithdrawn();
             }
         }
 
