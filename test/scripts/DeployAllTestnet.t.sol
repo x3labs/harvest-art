@@ -22,6 +22,7 @@ contract DeployAllTestnetTest is Test {
         vm.setEnv("ADDRESS_BARN", vm.toString(theBarn));
         vm.setEnv("ADDRESS_TESTNET_WALLET_A", vm.toString(user1));
         vm.setEnv("ADDRESS_TESTNET_WALLET_B", vm.toString(user2));
+        vm.setEnv("BID_TICKET_URI", "ipfs://QmfSM5YGibMFqTWe66GsGUKnyHte3HuXFUdr9aGZ55QPST");
         script.run();
     }
 }

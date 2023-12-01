@@ -7,6 +7,11 @@ if [ -z "$ALCHEMY_API_KEY" ]; then
     exit 1
 fi
 
+if [ -z "$ETHERSCAN_API_KEY" ]; then
+    echo "Missing ETHERSCAN_API_KEY"
+    exit 1
+fi
+
 anvil() {
     forge script script/DeployAllTestnet.s.sol:DeployAllTestnet \
         -vvvv \
@@ -62,7 +67,7 @@ mainnet() {
         --rpc-url "$rpcUrl" \
         --optimize \
         --optimizer-runs 10000 \
-        --gas-estimate-multiplier 200 \
+        --gas-estimate-multiplier 150 \
         --verify \
         --sender "$ADDRESS_DEPLOYER" \
         --interactives 1 \
