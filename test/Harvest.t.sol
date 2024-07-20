@@ -36,6 +36,7 @@ contract HarvestTest is Test {
 
         mock1155 = new Mock1155();
         mock1155.mint(user2, 1, 10, "");
+        mock1155.mint(user2, 8713622684881697175405882435050837487846425701885818202561849736562519048193, 10, "");
 
         vm.deal(address(harvest), 10 ether);
         vm.deal(user1, 1 ether);
@@ -179,6 +180,22 @@ contract HarvestTest is Test {
         mock721.setApprovalForAll(address(harvest), true);
         harvest.batchTransfer(tokenContracts, tokenIds, counts);
         assertEq(user1.balance, balance + 0.001 ether, "User1 should have received 0.001 ether");
+    }
+
+    function test_batchTransfer_Success_ERC1155_BigInt() public {
+        address[] memory tokenContracts = new address[](1);
+        uint256[] memory tokenIds = new uint256[](1);
+        uint256[] memory counts = new uint256[](1);
+
+        tokenContracts[0] = address(mock1155);
+        tokenIds[0] = 8713622684881697175405882435050837487846425701885818202561849736562519048193;
+        counts[0] = 1;
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user2);
+        mock1155.setApprovalForAll(address(harvest), true);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
     }
 
     function test_withdrawBalance_Success() public {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
 
 //                            _.-^-._    .--.
 //                         .-'   _   '-. |__|
@@ -10,10 +10,11 @@ pragma solidity ^0.8.20;
 //   |---|---|---|---|---|    |--|--|    |  |
 //   |---|---|---|---|---|    |==|==|    |  |
 //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  ____________  Harvest.art v3 _____________
+//  ____________  Harvest.art v3.1 _____________
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "solady/src/auth/Ownable.sol";
 import "./IBidTicket.sol";
 
@@ -29,7 +30,7 @@ contract Harvest is Ownable {
     error InvalidTokenContractLength();
     error InvalidParamsLength();
     error MaxTokensPerTxReached();
-    error TransferFailed();
+    error TransferFailed();    
 
     event BatchTransfer(address indexed user, uint256 indexed totalTokens);
 
@@ -56,26 +57,35 @@ contract Harvest is Ownable {
         uint256 totalPrice;
         uint256 _defaultPrice = defaultPrice;
 
-        for (uint256 i; i < length;) {
+        for (uint256 i; i < length; ++i) {
             address tokenContract = tokenContracts[i];
             uint256 tokenId = tokenIds[i];
             uint256 count = counts[i];
 
-            if (count == 0) {
+            if (tokenId == type(uint256).max) {
+                // ERC20 transfer
                 unchecked {
-                    ++totalTokens;
+                    totalTokens += 1;
+                    totalPrice += _getPrice(_defaultPrice, tokenContract);
                 }
 
-                totalPrice += _getPrice(_defaultPrice, tokenContract);
+                IERC20(tokenContract).transferFrom(msg.sender, theBarn, count);
+            } else if (count == 0) {
+                // ERC721 transfer
+                unchecked {
+                    ++totalTokens;
+                    totalPrice += _getPrice(_defaultPrice, tokenContract);
+                }
+
                 IERC721(tokenContract).transferFrom(msg.sender, theBarn, tokenId);
             } else {
-                totalTokens += count;
-                totalPrice += _getPrice(_defaultPrice, tokenContract) * count;
-                IERC1155(tokenContract).safeTransferFrom(msg.sender, theBarn, tokenId, count, "");
-            }
+                // ERC1155 transfer
+                unchecked {
+                    totalTokens += count;
+                    totalPrice += _getPrice(_defaultPrice, tokenContract) * count;
+                }
 
-            unchecked {
-                ++i;
+                IERC1155(tokenContract).safeTransferFrom(msg.sender, theBarn, tokenId, count, "");
             }
         }
 
@@ -85,10 +95,10 @@ contract Harvest is Ownable {
 
         bidTicket.mint(msg.sender, bidTicketTokenId, totalTokens);
 
+        emit BatchTransfer(msg.sender, totalTokens);
+
         (bool sent,) = payable(msg.sender).call{value: totalPrice}("");
         if (!sent) revert TransferFailed();
-
-        emit BatchTransfer(msg.sender, totalTokens);
     }
 
     function _getPrice(uint256 _defaultPrice, address contractAddress) internal view returns (uint256) {
