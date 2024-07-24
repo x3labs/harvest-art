@@ -26,3 +26,4 @@ coverage/
 
 # Local files
 .vscode/
+.cursorignore

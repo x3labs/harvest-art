@@ -79,6 +79,7 @@ contract Auctions is Ownable {
     error InvalidLengthOfAmounts();
     error InvalidLengthOfTokenIds();
     error InvalidValue();
+    error IsHighestBidder();
     error MaxTokensPerTxReached();
     error NoBalanceToWithdraw();
     error NotEnoughTokensInSupply();
@@ -210,6 +211,7 @@ contract Auctions is Ownable {
     function bid(uint256 auctionId, uint256 bidAmount) external payable {
         Auction storage auction = auctions[auctionId];
 
+        if (auction.highestBidder == msg.sender) revert IsHighestBidder();
         if (bidAmount < auction.highestBid + minBidIncrement) revert BidTooLow();
         if (block.timestamp > auction.endTime) revert AuctionEnded();
 
@@ -225,6 +227,8 @@ contract Auctions is Ownable {
 
         if (prevHighestBidder != address(0)) {
             unchecked {
+                balances[prevHighestBidder] += prevHighestBid;
+
                 uint256 reward = bidDelta * outbidRewardPercent / 100;
                 auction.rewards[prevHighestBidder] += reward;
 

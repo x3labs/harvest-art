@@ -7,12 +7,14 @@ import "../src/Harvest.sol";
 import "../src/BidTicket.sol";
 import "./lib/Mock721.sol";
 import "./lib/Mock1155.sol";
+import "./lib/Mock20.sol";
 
 contract HarvestTest is Test {
     Harvest public harvest;
     BidTicket public bidTicket;
     Mock721 public mock721;
     Mock1155 public mock1155;
+    MockERC20 public mockERC20;
 
     address public theBarn;
     address public user1;
@@ -37,6 +39,9 @@ contract HarvestTest is Test {
         mock1155 = new Mock1155();
         mock1155.mint(user2, 1, 10, "");
         mock1155.mint(user2, 8713622684881697175405882435050837487846425701885818202561849736562519048193, 10, "");
+
+        mockERC20 = new MockERC20();
+        mockERC20.mint(user2, 1000);
 
         vm.deal(address(harvest), 10 ether);
         vm.deal(user1, 1 ether);
@@ -196,6 +201,25 @@ contract HarvestTest is Test {
         vm.startPrank(user2);
         mock1155.setApprovalForAll(address(harvest), true);
         harvest.batchTransfer(tokenContracts, tokenIds, counts);
+    }
+
+    function test_batchTransfer_Success_ERC20() public {
+        address[] memory tokenContracts = new address[](1);
+        uint256[] memory tokenIds = new uint256[](1);
+        uint256[] memory counts = new uint256[](1);
+
+        tokenContracts[0] = address(mockERC20);
+        tokenIds[0] = type(uint256).max; // Use max uint256 to indicate ERC20 transfer
+        counts[0] = 100;
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user2);
+        mockERC20.approve(address(harvest), 100);
+        harvest.batchTransfer(tokenContracts, tokenIds, counts);
+
+        assertEq(mockERC20.balanceOf(theBarn), 100, "theBarn should have received 100 tokens");
+        assertEq(mockERC20.balanceOf(user2), 900, "user2 should have 900 tokens left");
     }
 
     function test_withdrawBalance_Success() public {

@@ -234,21 +234,6 @@ contract AuctionsTest is Test {
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
     }
 
-    function test_bid_Success_SelfBidding() public {
-        vm.startPrank(user1);
-
-        assertEq(bidTicket.balanceOf(user1, 1), 100);
-        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
-        assertEq(bidTicket.balanceOf(user1, 1), 99);
-        auctions.bid{value: 0.06 ether}(1, 0.06 ether);
-        assertEq(bidTicket.balanceOf(user1, 1), 98);
-
-        (,,,,, address highestBidder, uint256 highestBid,) = auctions.auctions(1);
-
-        assertEq(highestBidder, user1, "Highest bidder should be this contract");
-        assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
-    }
-
     function test_bid_Success_LastMinuteBidding() public {
         vm.startPrank(user1);
 
@@ -257,6 +242,7 @@ contract AuctionsTest is Test {
 
         skip(60 * 60 * 24 * 7 - 59 * 59); // 1 second before auction ends
 
+        vm.startPrank(user2);
         auctions.bid{value: 0.06 ether}(1, 0.06 ether);
 
         (,, uint256 endTimeB,,,,,) = auctions.auctions(1);
@@ -267,33 +253,48 @@ contract AuctionsTest is Test {
     function test_bid_RevertIf_BelowMinimumIncrement() public {
         vm.startPrank(user1);
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
         vm.expectRevert(bytes4(keccak256("BidTooLow()")));
         auctions.bid{value: 0.055 ether}(1, 0.055 ether);
+        vm.stopPrank();
     }
 
     function test_bid_RevertIf_BidEqualsHighestBid() public {
         vm.startPrank(user1);
-
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
+        vm.stopPrank();
+
         uint256 auctionId = auctions.nextAuctionId() - 1;
 
+        vm.startPrank(user2);
         auctions.bid{value: 0.06 ether}(auctionId, 0.06 ether);
+        vm.stopPrank();
+
+        vm.startPrank(user1);
         vm.expectRevert(bytes4(keccak256("BidTooLow()")));
         auctions.bid{value: 0.06 ether}(auctionId, 0.06 ether);
+        vm.stopPrank();
     }
 
     function test_bid_RevertIf_AfterAuctionEnded() public {
         vm.startPrank(user1);
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
+        vm.stopPrank();
+
         skip(60 * 60 * 24 * 7 + 1);
+
+        vm.startPrank(user2);
         vm.expectRevert(bytes4(keccak256("AuctionEnded()")));
         auctions.bid{value: 0.06 ether}(1, 0.06 ether);
+        vm.stopPrank();
     }
 
     function testFuzz_bid_Success(uint256 bidA, uint256 bidB) public {
         uint256 _bidA = bound(bidA, 0.05 ether, 1000 ether);
         uint256 _bidB = bound(bidB, _bidA + auctions.minBidIncrement(), 10000 ether);
-        
+
         vm.deal(user1, _bidA);
         vm.deal(user2, _bidB);
         vm.assume(_bidB > _bidA);
@@ -805,6 +806,37 @@ contract AuctionsTest is Test {
         auctions.withdraw(auctionIds);
     }
 
+    function test_processPayment_Success() public {
+        vm.startPrank(user1);
+        uint256 initialBalance = address(auctions).balance;
+        uint256 bidAmount = 0.05 ether;
+
+        auctions.startAuctionERC721{value: bidAmount}(bidAmount, address(mock721), tokenIds);
+
+        assertEq(address(auctions).balance, initialBalance + bidAmount, "Contract balance should increase by bid amount");
+        assertEq(auctions.balances(user1), 0, "User balance in contract should be 0");
+    }
+
+    function test_withdrawBalance_Success() public {
+        vm.startPrank(user1);
+        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        auctions.bid{value: 0.06 ether}(1, 0.06 ether);
+        vm.stopPrank();
+
+        assertEq(auctions.balances(user1), 0.05 ether, "User1 should have 0.05 ether balance in contract");
+
+        uint256 initialBalance = user1.balance;
+
+        vm.prank(user1);
+        auctions.withdrawBalance();
+
+        assertEq(user1.balance, initialBalance + 0.05 ether, "User1 balance should increase by 0.05 ether");
+        assertEq(auctions.balances(user1), 0, "User1 balance in contract should be 0 after withdrawal");
+    }
+
     //
     // getters/setters
     //
@@ -857,8 +889,15 @@ contract AuctionsTest is Test {
 
         vm.startPrank(user1);
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
         auctions.bid{value: 0.07 ether}(1, 0.07 ether);
-        auctions.bid{value: 0.09 ether}(1, 0.09 ether);
+        vm.stopPrank();
+
+        vm.startPrank(user1);
+        auctions.bid{value: 0.04 ether}(1, 0.09 ether);
+        vm.stopPrank();
     }
 
     function test_setMinBidIncrement_RevertIf_BidTooLow() public {
@@ -866,9 +905,16 @@ contract AuctionsTest is Test {
 
         vm.startPrank(user1);
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
         auctions.bid{value: 0.07 ether}(1, 0.07 ether);
+        vm.stopPrank();
+
+        vm.startPrank(user1);
         vm.expectRevert(bytes4(keccak256("BidTooLow()")));
         auctions.bid{value: 0.08 ether}(1, 0.08 ether);
+        vm.stopPrank();
     }
 
     function test_setBarnAddress_Success() public {
