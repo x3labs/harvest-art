@@ -33,8 +33,11 @@ struct Auction {
     Status status;
     address highestBidder;
     uint256 highestBid;
+    uint256 bidDelta;
+    address[] bidders;
     mapping(uint256 => uint256) tokenIds;
     mapping(uint256 => uint256) amounts;
+    mapping(address => uint256) rewards;
 }
 
 contract Auctions is Ownable {
@@ -55,6 +58,7 @@ contract Auctions is Ownable {
     uint256 public settlementDuration = 7 days;
     uint256 public antiSnipeDuration = 1 hours;
     uint256 public abandonmentFeePercent = 20;
+    uint256 public outbidRewardPercent = 10;
 
     mapping(address => uint256) public balances;
     mapping(uint256 => Auction) public auctions;
@@ -114,13 +118,10 @@ contract Auctions is Ownable {
         address tokenAddress,
         uint256[] calldata tokenIds
     ) external payable {
-        if (startingBid < minStartingBid) {
-            revert StartPriceTooLow();
-        }
+        if (startingBid < minStartingBid) revert StartPriceTooLow();
+        if (tokenIds.length == 0) revert InvalidLengthOfTokenIds();
+        if (tokenIds.length > maxTokens) revert MaxTokensPerTxReached();
 
-        bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostStart);
-
-        _validateAuctionTokensERC721(tokenAddress, tokenIds);
         _processPayment(startingBid);
 
         Auction storage auction = auctions[nextAuctionId];
@@ -143,6 +144,10 @@ contract Auctions is Ownable {
         }
 
         emit AuctionStarted(msg.sender, tokenAddress, tokenIds);
+        
+        bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostStart);
+
+        _validateAuctionTokensERC721(tokenAddress, tokenIds);
     }
 
     /**
@@ -161,13 +166,10 @@ contract Auctions is Ownable {
         uint256[] calldata tokenIds,
         uint256[] calldata amounts
     ) external payable {
-        if (startingBid < minStartingBid) {
-            revert StartPriceTooLow();
-        }
+        if (startingBid < minStartingBid) revert StartPriceTooLow();
+        if (tokenIds.length == 0) revert InvalidLengthOfTokenIds();
+        if (tokenIds.length != amounts.length) revert InvalidLengthOfAmounts();
 
-        bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostStart);
-
-        _validateAuctionTokensERC1155(tokenAddress, tokenIds, amounts);
         _processPayment(startingBid);
 
         Auction storage auction = auctions[nextAuctionId];
@@ -192,6 +194,10 @@ contract Auctions is Ownable {
         }
 
         emit AuctionStarted(msg.sender, tokenAddress, tokenIds);
+
+        bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostStart);
+
+        _validateAuctionTokensERC1155(tokenAddress, tokenIds, amounts);
     }
 
     /**
@@ -204,35 +210,36 @@ contract Auctions is Ownable {
     function bid(uint256 auctionId, uint256 bidAmount) external payable {
         Auction storage auction = auctions[auctionId];
 
-        if (block.timestamp > auction.endTime) {
-            revert AuctionEnded();
-        }
+        if (bidAmount < auction.highestBid + minBidIncrement) revert BidTooLow();
+        if (block.timestamp > auction.endTime) revert AuctionEnded();
 
         if (block.timestamp >= auction.endTime - antiSnipeDuration) {
             auction.endTime += uint64(antiSnipeDuration);
-        }
-
-        if (bidAmount < auction.highestBid + minBidIncrement) {
-            revert BidTooLow();
         }
 
         _processPayment(bidAmount);
 
         address prevHighestBidder = auction.highestBidder;
         uint256 prevHighestBid = auction.highestBid;
+        uint256 bidDelta = bidAmount - prevHighestBid;
+
+        if (prevHighestBidder != address(0)) {
+            unchecked {
+                uint256 reward = bidDelta * outbidRewardPercent / 100;
+                auction.rewards[prevHighestBidder] += reward;
+
+                if (auction.rewards[prevHighestBidder] == reward) {
+                    auction.bidders.push(prevHighestBidder);
+                }
+            }
+        }
 
         auction.highestBidder = msg.sender;
         auction.highestBid = bidAmount;
 
-        bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostBid);
-
-        if (prevHighestBidder != address(0)) {
-            unchecked {
-                balances[prevHighestBidder] += prevHighestBid;
-            }
-        }
-
         emit NewBid(auctionId, msg.sender, bidAmount);
+
+        bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostBid);
     }
 
     /**
@@ -245,25 +252,18 @@ contract Auctions is Ownable {
     function claim(uint256 auctionId) external {
         Auction storage auction = auctions[auctionId];
 
-        if (block.timestamp < auction.endTime) {
-            revert AuctionNotEnded();
-        }
-
-        if (msg.sender != auction.highestBidder) {
-            revert NotHighestBidder();
-        }
+        if (block.timestamp < auction.endTime) revert AuctionNotEnded();
+        if (msg.sender != auction.highestBidder) revert NotHighestBidder();
 
         if (auction.status != Status.Active) {
-            if (auction.status == Status.Refunded) {
-                revert AuctionRefunded();
-            } else if (auction.status == Status.Claimed) {
-                revert AuctionClaimed();
-            } else if (auction.status == Status.Abandoned) {
-                revert AuctionAbandoned();
-            }
+            if (auction.status == Status.Refunded) revert AuctionRefunded();
+            if (auction.status == Status.Claimed) revert AuctionClaimed();
+            if (auction.status == Status.Abandoned) revert AuctionAbandoned();
         }
 
         auction.status = Status.Claimed;
+        
+        _distributeRewards(auction);
 
         emit Claimed(auctionId, msg.sender);
 
@@ -285,37 +285,25 @@ contract Auctions is Ownable {
         uint256 highestBid = auction.highestBid;
         uint256 endTime = auction.endTime;
 
-        if (block.timestamp < endTime) {
-            revert AuctionActive();
-        }
-
-        if (block.timestamp > endTime + settlementDuration) {
-            revert SettlementPeriodEnded();
-        }
-
-        if (msg.sender != auction.highestBidder) {
-            revert NotHighestBidder();
-        }
+        if (block.timestamp < endTime) revert AuctionActive();
+        if (block.timestamp > endTime + settlementDuration) revert SettlementPeriodEnded();
+        if (msg.sender != auction.highestBidder) revert NotHighestBidder();
 
         if (auction.status != Status.Active) {
-            if (auction.status == Status.Refunded) {
-                revert AuctionRefunded();
-            } else if (auction.status == Status.Claimed) {
-                revert AuctionClaimed();
-            } else if (auction.status == Status.Withdrawn) {
-                revert AuctionWithdrawn();
-            }
+            if (auction.status == Status.Refunded) revert AuctionRefunded();
+            if (auction.status == Status.Claimed) revert AuctionClaimed();
+            if (auction.status == Status.Withdrawn) revert AuctionWithdrawn();
         }
+
+        auction.status = Status.Refunded;
+
+        emit Refunded(auctionId, msg.sender, highestBid);
 
         if (auction.auctionType == AUCTION_TYPE_ERC721) {
             _checkAndResetERC721s(auction);
         } else {
             _checkAndResetERC1155s(auction);
         }
-
-        auction.status = Status.Refunded;
-
-        emit Refunded(auctionId, msg.sender, highestBid);
 
         (bool success,) = payable(msg.sender).call{value: highestBid}("");
         if (!success) revert TransferFailed();
@@ -333,18 +321,12 @@ contract Auctions is Ownable {
         address highestBidder = auction.highestBidder;
         uint256 highestBid = auction.highestBid;
 
-        if (block.timestamp < auction.endTime + settlementDuration) {
-            revert SettlementPeriodNotExpired();
-        }
+        if (block.timestamp < auction.endTime + settlementDuration) revert SettlementPeriodNotExpired();
 
         if (auction.status != Status.Active) {
-            if (auction.status == Status.Abandoned) {
-                revert AuctionAbandoned();
-            } else if (auction.status == Status.Refunded) {
-                revert AuctionRefunded();
-            } else if (auction.status == Status.Claimed) {
-                revert AuctionClaimed();
-            }
+            if (auction.status == Status.Abandoned) revert AuctionAbandoned();
+            if (auction.status == Status.Refunded) revert AuctionRefunded();
+            if (auction.status == Status.Claimed) revert AuctionClaimed();
         }
 
         auction.status = Status.Abandoned;
@@ -380,9 +362,7 @@ contract Auctions is Ownable {
         for (uint256 i; i < auctionIds.length;) {
             Auction storage auction = auctions[auctionIds[i]];
 
-            if (auction.status != Status.Claimed) {
-                revert AuctionNotClaimed();
-            }
+            if (auction.status != Status.Claimed) revert AuctionNotClaimed();
 
             totalAmount += auction.highestBid;
             auction.status = Status.Withdrawn;
@@ -445,6 +425,18 @@ contract Auctions is Ownable {
         return (tokenIds, amounts);
     }
 
+    function getRewards(address bidder, uint256[] calldata auctionIds) external view returns (uint256) {
+        uint256 totalRewards;
+
+        for (uint256 i; i < auctionIds.length; ++i) {
+            if (auctions[auctionIds[i]].status == Status.Claimed) {
+                totalRewards += auctions[auctionIds[i]].rewards[bidder];
+            }
+        }
+
+        return totalRewards;
+    }
+
     function setBarnAddress(address theBarn_) external onlyOwner {
         theBarn = theBarn_;
     }
@@ -494,6 +486,11 @@ contract Auctions is Ownable {
         abandonmentFeePercent = newFeePercent;
     }
 
+    function setOutbidRewardPercent(uint256 newPercent) external onlyOwner {
+        if (newPercent > 100) revert InvalidFeePercentage();
+        outbidRewardPercent = newPercent;
+    }
+
     /**
      *
      * Internal Functions
@@ -523,30 +520,18 @@ contract Auctions is Ownable {
     }
 
     function _validateAuctionTokensERC721(address tokenAddress, uint256[] calldata tokenIds) internal {
-        if (tokenIds.length == 0) {
-            revert InvalidLengthOfTokenIds();
-        }
-
         IERC721 erc721Contract = IERC721(tokenAddress);
-
-        if (tokenIds.length > maxTokens) {
-            revert MaxTokensPerTxReached();
-        }
 
         mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
 
         for (uint256 i; i < tokenIds.length;) {
             uint256 tokenId = tokenIds[i];
 
-            if (auctionTokens[tokenId]) {
-                revert TokenAlreadyInAuction();
-            }
+            if (auctionTokens[tokenId]) revert TokenAlreadyInAuction();
 
             auctionTokens[tokenId] = true;
 
-            if (erc721Contract.ownerOf(tokenId) != theBarn) {
-                revert TokenNotOwned();
-            }
+            if (erc721Contract.ownerOf(tokenId) != theBarn) revert TokenNotOwned();
 
             unchecked {
                 ++i;
@@ -559,14 +544,6 @@ contract Auctions is Ownable {
         uint256[] calldata tokenIds,
         uint256[] calldata amounts
     ) internal {
-        if (tokenIds.length == 0) {
-            revert InvalidLengthOfTokenIds();
-        }
-
-        if (tokenIds.length != amounts.length) {
-            revert InvalidLengthOfAmounts();
-        }
-
         IERC1155 erc1155Contract = IERC1155(tokenAddress);
         uint256 totalTokens;
         uint256 totalNeeded;
@@ -584,9 +561,7 @@ contract Auctions is Ownable {
             totalNeeded = auctionTokens[tokenId] + amount;
             balance = erc1155Contract.balanceOf(theBarn, tokenId);
 
-            if (totalNeeded > balance) {
-                revert NotEnoughTokensInSupply();
-            }
+            if (totalNeeded > balance) revert NotEnoughTokensInSupply();
 
             unchecked {
                 auctionTokens[tokenId] += amount;
@@ -594,9 +569,7 @@ contract Auctions is Ownable {
             }
         }
 
-        if (totalTokens > maxTokens) {
-            revert MaxTokensPerTxReached();
-        }
+        if (totalTokens > maxTokens) revert MaxTokensPerTxReached();
     }
 
     function _transferERC721s(Auction storage auction) internal {
@@ -707,9 +680,7 @@ contract Auctions is Ownable {
             }
         }
 
-        if (notRefundable) {
-            revert AuctionIsApproved();
-        }
+        if (notRefundable) revert AuctionIsApproved();
     }
 
     function _checkAndResetERC1155s(Auction storage auction) internal {
@@ -739,8 +710,20 @@ contract Auctions is Ownable {
             }
         }
 
-        if (notRefundable) {
-            revert AuctionIsApproved();
+        if (notRefundable) revert AuctionIsApproved();
+    }
+
+    function _distributeRewards(Auction storage auction) internal {
+        for (uint256 i; i < auction.bidders.length; ++i) {
+            address bidder = auction.bidders[i];
+            uint256 reward = auction.rewards[bidder];
+
+            if (reward > 0) {
+                unchecked {
+                    balances[bidder] += reward;
+                }
+            }
         }
     }
 }
+
