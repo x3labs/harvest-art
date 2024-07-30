@@ -34,7 +34,8 @@ struct Auction {
     address highestBidder;
     uint256 highestBid;
     uint256 bidDelta;
-    address[] bidders;
+    uint256 bidCount;
+    mapping(uint256 => address) bidders;
     mapping(uint256 => uint256) tokenIds;
     mapping(uint256 => uint256) amounts;
     mapping(address => uint256) rewards;
@@ -65,19 +66,15 @@ contract Auctions is Ownable {
     mapping(address => mapping(uint256 => bool)) public auctionTokensERC721;
     mapping(address => mapping(uint256 => uint256)) public auctionTokensERC1155;
     
-    error AuctionAbandoned();
     error AuctionActive();
-    error AuctionClaimed();
     error AuctionEnded();
     error AuctionIsApproved();
-    error AuctionNotClaimed();
     error AuctionNotEnded();
-    error AuctionRefunded();
-    error AuctionWithdrawn();
     error BidTooLow();
     error InvalidFeePercentage();
     error InvalidLengthOfAmounts();
     error InvalidLengthOfTokenIds();
+    error InvalidStatus();
     error InvalidValue();
     error IsHighestBidder();
     error MaxTokensPerTxReached();
@@ -211,6 +208,7 @@ contract Auctions is Ownable {
     function bid(uint256 auctionId, uint256 bidAmount) external payable {
         Auction storage auction = auctions[auctionId];
 
+        if (auction.status != Status.Active) revert InvalidStatus();
         if (auction.highestBidder == msg.sender) revert IsHighestBidder();
         if (bidAmount < auction.highestBid + minBidIncrement) revert BidTooLow();
         if (block.timestamp > auction.endTime) revert AuctionEnded();
@@ -233,7 +231,8 @@ contract Auctions is Ownable {
                 auction.rewards[prevHighestBidder] += reward;
 
                 if (auction.rewards[prevHighestBidder] == reward) {
-                    auction.bidders.push(prevHighestBidder);
+                    auction.bidders[auction.bidCount] = prevHighestBidder;
+                    auction.bidCount++;
                 }
             }
         }
@@ -256,14 +255,9 @@ contract Auctions is Ownable {
     function claim(uint256 auctionId) external {
         Auction storage auction = auctions[auctionId];
 
+        if (auction.status != Status.Active) revert InvalidStatus();
         if (block.timestamp < auction.endTime) revert AuctionNotEnded();
         if (msg.sender != auction.highestBidder) revert NotHighestBidder();
-
-        if (auction.status != Status.Active) {
-            if (auction.status == Status.Refunded) revert AuctionRefunded();
-            if (auction.status == Status.Claimed) revert AuctionClaimed();
-            if (auction.status == Status.Abandoned) revert AuctionAbandoned();
-        }
 
         auction.status = Status.Claimed;
         
@@ -289,15 +283,10 @@ contract Auctions is Ownable {
         uint256 highestBid = auction.highestBid;
         uint256 endTime = auction.endTime;
 
+        if (auction.status != Status.Active) revert InvalidStatus();
         if (block.timestamp < endTime) revert AuctionActive();
         if (block.timestamp > endTime + settlementDuration) revert SettlementPeriodEnded();
         if (msg.sender != auction.highestBidder) revert NotHighestBidder();
-
-        if (auction.status != Status.Active) {
-            if (auction.status == Status.Refunded) revert AuctionRefunded();
-            if (auction.status == Status.Claimed) revert AuctionClaimed();
-            if (auction.status == Status.Withdrawn) revert AuctionWithdrawn();
-        }
 
         auction.status = Status.Refunded;
 
@@ -325,13 +314,8 @@ contract Auctions is Ownable {
         address highestBidder = auction.highestBidder;
         uint256 highestBid = auction.highestBid;
 
+        if (auction.status != Status.Active) revert InvalidStatus();
         if (block.timestamp < auction.endTime + settlementDuration) revert SettlementPeriodNotExpired();
-
-        if (auction.status != Status.Active) {
-            if (auction.status == Status.Abandoned) revert AuctionAbandoned();
-            if (auction.status == Status.Refunded) revert AuctionRefunded();
-            if (auction.status == Status.Claimed) revert AuctionClaimed();
-        }
 
         auction.status = Status.Abandoned;
 
@@ -363,17 +347,13 @@ contract Auctions is Ownable {
     function withdraw(uint256[] calldata auctionIds) external onlyOwner {
         uint256 totalAmount;
 
-        for (uint256 i; i < auctionIds.length;) {
+        for (uint256 i; i < auctionIds.length; ++i) {
             Auction storage auction = auctions[auctionIds[i]];
 
-            if (auction.status != Status.Claimed) revert AuctionNotClaimed();
+            if (auction.status != Status.Claimed) revert InvalidStatus();
 
             totalAmount += auction.highestBid;
             auction.status = Status.Withdrawn;
-
-            unchecked {
-                ++i;
-            }
         }
 
         (bool success,) = payable(msg.sender).call{value: totalAmount}("");
@@ -389,6 +369,7 @@ contract Auctions is Ownable {
      */
     function withdrawBalance() external {
         uint256 balance = balances[msg.sender];
+
         if (balance == 0) revert NoBalanceToWithdraw();
 
         balances[msg.sender] = 0;
@@ -413,16 +394,13 @@ contract Auctions is Ownable {
 
         uint256 tokenCount = auction.tokenCount;
 
-        for (uint256 i; i < tokenCount;) {
+        for (uint256 i; i < tokenCount; ++i) {
             tokenIds[i] = auction.tokenIds[i];
+
             if (auction.auctionType == AUCTION_TYPE_ERC721) {
                 amounts[i] = 1;
             } else {
                 amounts[i] = auction.amounts[i];
-            }
-
-            unchecked {
-                ++i;
             }
         }
 
@@ -514,9 +492,7 @@ contract Auctions is Ownable {
             paymentFromMsgValue = payment - balance;
         }
 
-        if (msg.value != paymentFromMsgValue) {
-            revert InvalidValue();
-        }
+        if (msg.value != paymentFromMsgValue) revert InvalidValue();
 
         if (paymentFromBalance > 0) {
             balances[msg.sender] -= paymentFromBalance;
@@ -528,7 +504,7 @@ contract Auctions is Ownable {
 
         mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
 
-        for (uint256 i; i < tokenIds.length;) {
+        for (uint256 i; i < tokenIds.length; ++i) {
             uint256 tokenId = tokenIds[i];
 
             if (auctionTokens[tokenId]) revert TokenAlreadyInAuction();
@@ -536,10 +512,6 @@ contract Auctions is Ownable {
             auctionTokens[tokenId] = true;
 
             if (erc721Contract.ownerOf(tokenId) != theBarn) revert TokenNotOwned();
-
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -557,7 +529,7 @@ contract Auctions is Ownable {
 
         mapping(uint256 => uint256) storage auctionTokens = auctionTokensERC1155[tokenAddress];
 
-        for (uint256 i; i < tokenIds.length;) {
+        for (uint256 i; i < tokenIds.length; ++i) {
             tokenId = tokenIds[i];
             amount = amounts[i];
 
@@ -569,7 +541,6 @@ contract Auctions is Ownable {
 
             unchecked {
                 auctionTokens[tokenId] += amount;
-                ++i;
             }
         }
 
@@ -585,14 +556,10 @@ contract Auctions is Ownable {
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
         mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
 
-        for (uint256 i; i < tokenCount;) {
+        for (uint256 i; i < tokenCount; ++i) {
             uint256 tokenId = tokenMap[i];
             auctionTokens[tokenId] = false;
             erc721Contract.transferFrom(theBarn, highestBidder, tokenId);
-
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -607,17 +574,13 @@ contract Auctions is Ownable {
         mapping(uint256 => uint256) storage amountMap = auction.amounts;
         mapping(uint256 => uint256) storage auctionTokens = auctionTokensERC1155[tokenAddress];
 
-        for (uint256 i; i < tokenCount;) {
+        for (uint256 i; i < tokenCount; ++i) {
             uint256 tokenId = tokenMap[i];
             uint256 amount = amountMap[i];
 
             tokenIds[i] = tokenId;
             amounts[i] = amount;
             auctionTokens[tokenId] -= amount;
-
-            unchecked {
-                ++i;
-            }
         }
 
         erc1155Contract.safeBatchTransferFrom(theBarn, auction.highestBidder, tokenIds, amounts, "");
@@ -630,13 +593,9 @@ contract Auctions is Ownable {
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
         mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
 
-        for (uint256 i; i < tokenCount;) {
+        for (uint256 i; i < tokenCount; ++i) {
             uint256 tokenId = tokenMap[i];
             auctionTokens[tokenId] = false;
-
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -650,17 +609,13 @@ contract Auctions is Ownable {
         mapping(uint256 => uint256) storage amountMap = auction.amounts;
         mapping(uint256 => uint256) storage auctionTokens = auctionTokensERC1155[tokenAddress];
 
-        for (uint256 i; i < tokenCount;) {
+        for (uint256 i; i < tokenCount; ++i) {
             uint256 tokenId = tokenMap[i];
             uint256 amount = amountMap[i];
 
             tokenIds[i] = tokenId;
             amounts[i] = amount;
             auctionTokens[tokenId] -= amount;
-
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -673,15 +628,11 @@ contract Auctions is Ownable {
 
         bool notRefundable = IERC721(tokenAddress).isApprovedForAll(theBarn, address(this));
 
-        for (uint256 i; i < tokenCount;) {
+        for (uint256 i; i < tokenCount; ++i) {
             uint256 tokenId = tokenMap[i];
             auctionTokens[tokenId] = false;
 
             notRefundable = notRefundable && (IERC721(tokenAddress).ownerOf(tokenId) == theBarn);
-
-            unchecked {
-                ++i;
-            }
         }
 
         if (notRefundable) revert AuctionIsApproved();
@@ -699,7 +650,7 @@ contract Auctions is Ownable {
 
         bool notRefundable = IERC1155(tokenAddress).isApprovedForAll(theBarn, address(this));
 
-        for (uint256 i; i < tokenCount;) {
+        for (uint256 i; i < tokenCount; ++i) {
             uint256 tokenId = tokenMap[i];
             uint256 amount = amountMap[i];
 
@@ -708,17 +659,13 @@ contract Auctions is Ownable {
             auctionTokens[tokenId] -= amount;
 
             notRefundable = notRefundable && (IERC1155(tokenAddress).balanceOf(theBarn, tokenId) >= amount);
-
-            unchecked {
-                ++i;
-            }
         }
 
         if (notRefundable) revert AuctionIsApproved();
     }
 
     function _distributeRewards(Auction storage auction) internal {
-        for (uint256 i; i < auction.bidders.length; ++i) {
+        for (uint256 i; i < auction.bidCount; ++i) {
             address bidder = auction.bidders[i];
             uint256 reward = auction.rewards[bidder];
 

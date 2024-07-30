@@ -12,25 +12,26 @@ pragma solidity ^0.8.25;
 //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //  ____________  Harvest.art v3.1 _____________
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "solady/src/auth/Ownable.sol";
 import "./IBidTicket.sol";
+
+enum TokenType { ERC20, ERC721, ERC1155 }
 
 contract Harvest is Ownable {
     IBidTicket public bidTicket;
     address public theBarn;
-    uint256 public defaultPrice = 1 gwei;
+    uint256 public pricePerSale = 1 gwei;
     uint256 public maxTokensPerTx = 100;
     uint256 public bidTicketTokenId = 1;
-
-    mapping(address => uint256) private _contractPrices;
 
     error InvalidTokenContractLength();
     error InvalidParamsLength();
     error MaxTokensPerTxReached();
-    error TransferFailed();    
+    error TransferFailed();
+    error InvalidTokenType();
 
     event BatchTransfer(address indexed user, uint256 indexed totalTokens);
 
@@ -40,52 +41,51 @@ contract Harvest is Ownable {
         bidTicket = IBidTicket(bidTicket_);
     }
 
-    function batchTransfer(address[] calldata tokenContracts, uint256[] calldata tokenIds, uint256[] calldata counts)
-        external
-    {
-        uint256 length = tokenContracts.length;
+    function batchTransfer(
+        TokenType[] calldata types,
+        address[] calldata contracts,
+        uint256[] calldata tokenIds,
+        uint256[] calldata counts
+    ) external {
+        uint256 length = contracts.length;
 
         if (length == 0) {
             revert InvalidTokenContractLength();
         }
 
-        if (length != tokenIds.length || length != counts.length) {
+        if (length != tokenIds.length || length != counts.length || length != types.length) {
             revert InvalidParamsLength();
         }
 
         uint256 totalTokens;
         uint256 totalPrice;
-        uint256 _defaultPrice = defaultPrice;
 
         for (uint256 i; i < length; ++i) {
-            address tokenContract = tokenContracts[i];
+            TokenType tokenType = types[i];
+            address tokenContract = contracts[i];
             uint256 tokenId = tokenIds[i];
             uint256 count = counts[i];
 
-            if (tokenId == type(uint256).max) {
-                // ERC20 transfer
-                unchecked {
-                    totalTokens += 1;
-                    totalPrice += _getPrice(_defaultPrice, tokenContract);
-                }
-
-                IERC20(tokenContract).transferFrom(msg.sender, theBarn, count);
-            } else if (count == 0) {
-                // ERC721 transfer
+            if (tokenType == TokenType.ERC20) {
                 unchecked {
                     ++totalTokens;
-                    totalPrice += _getPrice(_defaultPrice, tokenContract);
+                    totalPrice += pricePerSale;
                 }
-
+                IERC20(tokenContract).transferFrom(msg.sender, theBarn, count);
+            } else if (tokenType == TokenType.ERC721) {
+                unchecked {
+                    ++totalTokens;
+                    totalPrice += pricePerSale;
+                }
                 IERC721(tokenContract).transferFrom(msg.sender, theBarn, tokenId);
-            } else {
-                // ERC1155 transfer
+            } else if (tokenType == TokenType.ERC1155) {
                 unchecked {
                     totalTokens += count;
-                    totalPrice += _getPrice(_defaultPrice, tokenContract) * count;
+                    totalPrice += pricePerSale * count;
                 }
-
                 IERC1155(tokenContract).safeTransferFrom(msg.sender, theBarn, tokenId, count, "");
+            } else {
+                revert InvalidTokenType();
             }
         }
 
@@ -101,28 +101,16 @@ contract Harvest is Ownable {
         if (!sent) revert TransferFailed();
     }
 
-    function _getPrice(uint256 _defaultPrice, address contractAddress) internal view returns (uint256) {
-        if (_contractPrices[contractAddress] > 0) {
-            return _contractPrices[contractAddress];
-        } else {
-            return _defaultPrice;
-        }
-    }
-
     function setBarn(address _theBarn) public onlyOwner {
         theBarn = _theBarn;
     }
 
-    function setDefaultPrice(uint256 _defaultPrice) public onlyOwner {
-        defaultPrice = _defaultPrice;
+    function setPrice(uint256 _price) public onlyOwner {
+        pricePerSale = _price;
     }
 
     function setMaxTokensPerTx(uint256 _maxTokensPerTx) public onlyOwner {
         maxTokensPerTx = _maxTokensPerTx;
-    }
-
-    function setPriceByContract(address contractAddress, uint256 price) public onlyOwner {
-        _contractPrices[contractAddress] = price;
     }
 
     function setBidTicketAddress(address bidTicket_) external onlyOwner {
@@ -142,3 +130,4 @@ contract Harvest is Ownable {
 
     fallback() external payable {}
 }
+

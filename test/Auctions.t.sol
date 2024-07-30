@@ -68,7 +68,7 @@ contract AuctionsTest is Test {
         assertEq(auctions.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 99);
 
-        (, address tokenAddress,,,, address highestBidder, uint256 highestBid,) = auctions.auctions(1);
+        (, address tokenAddress,,,, address highestBidder, uint256 highestBid,,) = auctions.auctions(1);
 
         assertEq(tokenAddress, address(mock721));
         assertEq(highestBidder, user1);
@@ -89,7 +89,7 @@ contract AuctionsTest is Test {
         assertEq(auctions.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 99);
 
-        (, address tokenAddress,,,, address highestBidder, uint256 highestBid,) = auctions.auctions(1);
+        (, address tokenAddress,,,, address highestBidder, uint256 highestBid,,) = auctions.auctions(1);
 
         assertEq(tokenAddress, address(mock721));
         assertEq(highestBidder, user1);
@@ -172,7 +172,7 @@ contract AuctionsTest is Test {
         assertEq(auctions.nextAuctionId(), 2, "nextAuctionId should be incremented");
         assertEq(bidTicket.balanceOf(user1, 1), 99);
 
-        (, address tokenAddress,,,, address highestBidder, uint256 highestBid,) = auctions.auctions(1);
+        (, address tokenAddress,,,, address highestBidder, uint256 highestBid,,) = auctions.auctions(1);
 
         assertEq(tokenAddress, address(mock1155));
         assertEq(highestBidder, user1);
@@ -229,7 +229,7 @@ contract AuctionsTest is Test {
         assertEq(bidTicket.balanceOf(user1, 1), 99);
         assertEq(bidTicket.balanceOf(user2, 1), 99);
 
-        (,,,,, address highestBidder, uint256 highestBid,) = auctions.auctions(1);
+        (,,,,, address highestBidder, uint256 highestBid,,) = auctions.auctions(1);
 
         assertEq(highestBidder, user2, "Highest bidder should be this contract");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
@@ -239,14 +239,14 @@ contract AuctionsTest is Test {
         vm.startPrank(user1);
 
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
-        (,, uint256 endTimeA,,,,,) = auctions.auctions(1);
+        (,, uint256 endTimeA,,,,,,) = auctions.auctions(1);
 
         skip(60 * 60 * 24 * 7 - 59 * 59); // 1 second before auction ends
 
         vm.startPrank(user2);
         auctions.bid{value: 0.06 ether}(1, 0.06 ether);
 
-        (,, uint256 endTimeB,,,,,) = auctions.auctions(1);
+        (,, uint256 endTimeB,,,,,,) = auctions.auctions(1);
 
         assertLt(endTimeA, endTimeB, "New endtime should be greater than old endtime");
     }
@@ -308,7 +308,7 @@ contract AuctionsTest is Test {
         assertEq(bidTicket.balanceOf(user1, 1), 99);
         assertEq(bidTicket.balanceOf(user2, 1), 99);
 
-        (,,,,, address highestBidder, uint256 highestBid,) = auctions.auctions(1);
+        (,,,,, address highestBidder, uint256 highestBid,,) = auctions.auctions(1);
 
         assertEq(highestBidder, user2, "Highest bidder should be this contract");
         assertEq(highestBid, _bidB, "Highest bid should be 0.06 ether");
@@ -327,7 +327,7 @@ contract AuctionsTest is Test {
         vm.startPrank(user2);
         auctions.bid{value: 0.06 ether}(auctionId, 0.06 ether);
 
-        (,,,,, address highestBidder, uint256 highestBid,) = auctions.auctions(auctionId);
+        (,,,,, address highestBidder, uint256 highestBid,,) = auctions.auctions(auctionId);
 
         assertEq(user2.balance, 0.94 ether, "user2 should have 0.95 ether in wallet");
         assertEq(highestBidder, user2, "Highest bidder should be user1");
@@ -356,7 +356,7 @@ contract AuctionsTest is Test {
         vm.startPrank(user2);
         auctions.bid{value: 0.06 ether}(auctionId, 0.06 ether);
 
-        (,,,,, address highestBidder, uint256 highestBid,) = auctions.auctions(auctionId);
+        (,,,,, address highestBidder, uint256 highestBid,,) = auctions.auctions(auctionId);
 
         assertEq(user2.balance, 0.94 ether, "user2 should have 0.95 ether in wallet");
         assertEq(highestBidder, user2, "Highest bidder should be user1");
@@ -401,7 +401,7 @@ contract AuctionsTest is Test {
         auctions.abandon(auctionId);
 
         vm.prank(user1);
-        vm.expectRevert(bytes4(keccak256("AuctionAbandoned()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.claim(auctionId);
     }
 
@@ -416,7 +416,7 @@ contract AuctionsTest is Test {
         skip(60 * 60 * 24 * 7 + 1);
 
         auctions.refund(auctionId);
-        vm.expectRevert(bytes4(keccak256("AuctionRefunded()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.claim(auctionId);
     }
 
@@ -429,7 +429,7 @@ contract AuctionsTest is Test {
         skip(60 * 60 * 24 * 7 + 1);
 
         auctions.claim(auctionId);
-        vm.expectRevert(bytes4(keccak256("AuctionClaimed()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.claim(auctionId);
     }
 
@@ -455,7 +455,7 @@ contract AuctionsTest is Test {
         auctions.refund(auctionId);
         assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
 
-        (,,,, Status status,,,) = auctions.auctions(auctionId);
+        (,,,, Status status,,,,) = auctions.auctions(auctionId);
 
         assertTrue(status == Status.Refunded, "Auction should be marked as refunded");
         assertFalse(auctions.auctionTokensERC721(address(mock721), tokenIds[0]), "Token 0 should not be in auction");
@@ -482,7 +482,7 @@ contract AuctionsTest is Test {
         auctions.refund(auctionId);
         assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
 
-        (,,,, Status status,,,) = auctions.auctions(auctionId);
+        (,,,, Status status,,,,) = auctions.auctions(auctionId);
 
         assertTrue(status == Status.Refunded, "Auction should be marked as refunded");
         assertEq(auctions.auctionTokensERC1155(address(mock1155), tokenIds[0]), 0, "Token 0 should have 0 in auction");
@@ -538,7 +538,7 @@ contract AuctionsTest is Test {
         skip(60 * 60 * 24 * 7 + 1);
 
         auctions.refund(auctionId);
-        vm.expectRevert(bytes4(keccak256("AuctionRefunded()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.refund(auctionId);
     }
 
@@ -551,7 +551,7 @@ contract AuctionsTest is Test {
         skip(60 * 60 * 24 * 7 + 1);
 
         auctions.claim(auctionId);
-        vm.expectRevert(bytes4(keccak256("AuctionClaimed()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.refund(auctionId);
     }
 
@@ -574,11 +574,11 @@ contract AuctionsTest is Test {
         vm.startPrank(address(this));
         auctions.withdraw(auctionIds);
 
-        (,,,, Status status,,,) = auctions.auctions(auctionId);
+        (,,,, Status status,,,,) = auctions.auctions(auctionId);
         assertTrue(status == Status.Withdrawn, "Auction should be marked as withdrawn");
 
         vm.startPrank(user1);
-        vm.expectRevert(bytes4(keccak256("AuctionWithdrawn()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.refund(auctionId);
         // assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
     }
@@ -609,7 +609,7 @@ contract AuctionsTest is Test {
             "user1 should have 1 ether - fee"
         );
 
-        (,,,, Status status,,,) = auctions.auctions(auctionId);
+        (,,,, Status status,,,,) = auctions.auctions(auctionId);
 
         assertTrue(status == Status.Abandoned, "Auction should be marked as abandoned");
         assertFalse(auctions.auctionTokensERC721(address(mock721), tokenIds[0]), "Token 0 should not be in auction");
@@ -641,7 +641,7 @@ contract AuctionsTest is Test {
             "user1 should have 1 ether - fee"
         );
 
-        (,,,, Status status,,,) = auctions.auctions(auctionId);
+        (,,,, Status status,,,,) = auctions.auctions(auctionId);
 
         assertTrue(status == Status.Abandoned, "Auction should be marked as abandoned");
         assertEq(auctions.auctionTokensERC1155(address(mock1155), tokenIds[0]), 0, "Token 0 should have 0 in auction");
@@ -674,7 +674,7 @@ contract AuctionsTest is Test {
         skip(60 * 60 * 24 * 14 + 1);
 
         auctions.abandon(1);
-        vm.expectRevert(bytes4(keccak256("AuctionAbandoned()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.abandon(1);
     }
 
@@ -690,7 +690,7 @@ contract AuctionsTest is Test {
 
         skip(60 * 60 * 24 * 7);
 
-        vm.expectRevert(bytes4(keccak256("AuctionRefunded()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.abandon(1);
     }
 
@@ -701,7 +701,7 @@ contract AuctionsTest is Test {
         auctions.claim(1);
         vm.stopPrank();
 
-        vm.expectRevert(bytes4(keccak256("AuctionClaimed()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.abandon(1);
     }
 
@@ -722,7 +722,7 @@ contract AuctionsTest is Test {
         vm.startPrank(address(this));
         auctions.withdraw(auctionIds);
 
-        (,,,, Status status,,,) = auctions.auctions(auctionId);
+        (,,,, Status status,,,,) = auctions.auctions(auctionId);
         assertTrue(status == Status.Withdrawn, "Auction should be marked as withdrawn");
     }
 
@@ -737,7 +737,7 @@ contract AuctionsTest is Test {
         skip(60 * 60 * 24 * 1); // auction is still active
 
         vm.startPrank(address(this));
-        vm.expectRevert(bytes4(keccak256("AuctionNotClaimed()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.withdraw(auctionIds);
     }
 
@@ -752,7 +752,7 @@ contract AuctionsTest is Test {
         skip(60 * 60 * 24 * 7 + 1); // beginning of the settlement period
 
         vm.startPrank(address(this));
-        vm.expectRevert(bytes4(keccak256("AuctionNotClaimed()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.withdraw(auctionIds);
     }
 
@@ -770,7 +770,7 @@ contract AuctionsTest is Test {
         skip(60 * 60 * 24 * 14 + 1); // the settlement period has ended
         vm.startPrank(address(this));
         auctions.withdraw(auctionIds);
-        vm.expectRevert(bytes4(keccak256("AuctionNotClaimed()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.withdraw(auctionIds);
     }
 
@@ -787,7 +787,7 @@ contract AuctionsTest is Test {
 
         uint256[] memory auctionIds = new uint256[](1);
         auctionIds[0] = auctionId;
-        vm.expectRevert(bytes4(keccak256("AuctionNotClaimed()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.withdraw(auctionIds);
     }
 
@@ -803,7 +803,7 @@ contract AuctionsTest is Test {
 
         uint256[] memory auctionIds = new uint256[](1);
         auctionIds[0] = auctionId;
-        vm.expectRevert(bytes4(keccak256("AuctionNotClaimed()")));
+        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
         auctions.withdraw(auctionIds);
     }
 
@@ -847,7 +847,7 @@ contract AuctionsTest is Test {
         vm.startPrank(user1);
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
 
-        (, address tokenAddress,,,,,,) = auctions.auctions(1);
+        (, address tokenAddress,,,,,,,) = auctions.auctions(1);
         assertEq(tokenAddress, address(mock721));
 
         (uint256[] memory _tokenIds, uint256[] memory _amounts) = auctions.getAuctionTokens(1);
@@ -865,7 +865,7 @@ contract AuctionsTest is Test {
         vm.startPrank(user1);
         auctions.startAuctionERC1155{value: 0.05 ether}(0.05 ether, address(mock1155), tokenIds, tokenIdAmounts);
 
-        (, address tokenAddress,,,,,,) = auctions.auctions(1);
+        (, address tokenAddress,,,,,,,) = auctions.auctions(1);
         assertEq(tokenAddress, address(mock1155));
 
         (uint256[] memory _tokenIds, uint256[] memory _amounts) = auctions.getAuctionTokens(1);
