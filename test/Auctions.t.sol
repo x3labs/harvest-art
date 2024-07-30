@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -29,8 +29,9 @@ contract AuctionsTest is Test {
 
     function setUp() public {
         theBarn = vm.addr(1);
-        bidTicket = new BidTicket();
-        auctions = new Auctions(theBarn, address(bidTicket));
+
+        bidTicket = new BidTicket(address(this));
+        auctions = new Auctions(address(this), theBarn, address(bidTicket));
         mock721 = new Mock721();
         mock1155 = new Mock1155();
 

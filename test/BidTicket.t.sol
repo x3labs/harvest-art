@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -48,7 +48,7 @@ contract BidTicketTest is Test {
     uint256[] amounts = new uint256[](1);
 
     function setUp() public {
-        bidTicket = new BidTicket();
+        bidTicket = new BidTicket(address(this));
 
         mockHarvest = new MockHarvestContract(address(bidTicket));
         mockAuctions = new MockAuctionsContract(address(bidTicket));

@@ -34,8 +34,8 @@ contract Harvest is Ownable {
 
     event BatchTransfer(address indexed user, uint256 indexed totalTokens);
 
-    constructor(address theBarn_, address bidTicket_) {
-        _initializeOwner(msg.sender);
+    constructor(address owner_, address theBarn_, address bidTicket_) {
+        _initializeOwner(owner_);
         theBarn = theBarn_;
         bidTicket = IBidTicket(bidTicket_);
     }

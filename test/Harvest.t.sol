@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -28,8 +28,8 @@ contract HarvestTest is Test {
         user1 = vm.addr(2);
         user2 = vm.addr(3);
 
-        bidTicket = new BidTicket();
-        harvest = new Harvest(theBarn, address(bidTicket));
+        bidTicket = new BidTicket(address(this));
+        harvest = new Harvest(address(this), theBarn, address(bidTicket));
 
         bidTicket.setHarvestContract(address(harvest));
 

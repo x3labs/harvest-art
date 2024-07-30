@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
 
 import "forge-std/console.sol";
 import "forge-std/Script.sol";
@@ -16,13 +16,25 @@ contract DeployAllTestnet is Script {
 
     function run() external {
         vm.startBroadcast();
-        bidTicket = new BidTicket();
-        harvest = new Harvest(vm.envAddress("ADDRESS_BARN"), address(bidTicket));
-        auctions = new Auctions(vm.envAddress("ADDRESS_BARN"), address(bidTicket));
+        bytes32 salt;
+        
+        salt = keccak256(abi.encodePacked(vm.envString("SALT_BID_TICKET")));
+        bidTicket = new BidTicket{salt: salt}(tx.origin);
+
+        salt = keccak256(abi.encodePacked(vm.envString("SALT_HARVEST")));
+        harvest = new Harvest{salt: salt}(tx.origin, vm.envAddress("ADDRESS_BARN"), address(bidTicket));
+
+        salt = keccak256(abi.encodePacked(vm.envString("SALT_AUCTIONS")));
+        auctions = new Auctions{salt: salt}(tx.origin, vm.envAddress("ADDRESS_BARN"), address(bidTicket));
 
         console.log("BidTicket: ", address(bidTicket));
         console.log("Harvest: ", address(harvest));
         console.log("Auctions: ", address(auctions));
+
+        console.log("tx.origin: ", tx.origin);
+        console.log("BidTicket Owner: ", bidTicket.owner());
+        console.log("Harvest Owner: ", harvest.owner());
+        console.log("Auctions Owner: ", auctions.owner());
 
         bidTicket.setHarvestContract(address(harvest));
         bidTicket.setAuctionsContract(address(auctions));

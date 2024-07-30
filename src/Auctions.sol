@@ -99,8 +99,8 @@ contract Auctions is Ownable {
     event Withdraw(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
     event WithdrawBalance(address indexed user, uint256 indexed value);
 
-    constructor(address theBarn_, address bidTicket_) {
-        _initializeOwner(msg.sender);
+    constructor(address owner_, address theBarn_, address bidTicket_) {
+        _initializeOwner(owner_);
         theBarn = theBarn_;
         bidTicket = IBidTicket(bidTicket_);
     }

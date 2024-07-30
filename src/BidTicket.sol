@@ -41,8 +41,8 @@ contract BidTicket is ERC1155P, Ownable, IBidTicket {
         _;
     }
 
-    constructor() {
-        _initializeOwner(msg.sender);
+    constructor(address owner_) {
+        _initializeOwner(owner_);
     }
 
     function name() public view virtual override returns (string memory) {
