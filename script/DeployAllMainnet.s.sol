@@ -20,13 +20,21 @@ contract DeployAllMainnet is Script {
         bytes32 salt;
 
         salt = keccak256(abi.encodePacked(vm.envString("SALT_BID_TICKET")));
-        bidTicket = new BidTicket{salt: salt}(tx.origin);
+        bidTicket = new BidTicket{salt: salt}(vm.envAddress("ADDRESS_DEPLOYER"));
 
         salt = keccak256(abi.encodePacked(vm.envString("SALT_HARVEST")));
-        harvest = new Harvest{salt: salt}(msg.sender, vm.envAddress("ADDRESS_BARN"), address(bidTicket));
+        harvest = new Harvest{salt: salt}(
+            vm.envAddress("ADDRESS_DEPLOYER"),
+            vm.envAddress("ADDRESS_BARN"),
+            address(bidTicket)
+        );
 
         salt = keccak256(abi.encodePacked(vm.envString("SALT_AUCTIONS")));
-        auctions = new Auctions{salt: salt}(msg.sender, vm.envAddress("ADDRESS_BARN"), address(bidTicket));
+        auctions = new Auctions{salt: salt}(
+            vm.envAddress("ADDRESS_DEPLOYER"),
+            vm.envAddress("ADDRESS_BARN"),
+            address(bidTicket)
+        );
 
         bidTicket.setHarvestContract(address(harvest));
         bidTicket.setAuctionsContract(address(auctions));

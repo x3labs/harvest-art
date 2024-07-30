@@ -13,7 +13,7 @@ contract BidTicketDeployTestnet is Script {
 
         bytes32 salt = keccak256(abi.encodePacked(vm.envString("SALT_BID_TICKET")));
 
-        bidTicket = new BidTicket{salt: salt}(tx.origin);
+        bidTicket = new BidTicket{salt: salt}(vm.envAddress("ADDRESS_DEPLOYER"));
 
         bidTicket.setHarvestContract(vm.envAddress("ADDRESS_CONTRACT_HARVEST"));
         bidTicket.setAuctionsContract(vm.envAddress("ADDRESS_CONTRACT_AUCTIONS"));

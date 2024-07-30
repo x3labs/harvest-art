@@ -14,7 +14,7 @@ contract HarvestDeployTestnet is Script {
         bytes32 salt = keccak256(abi.encodePacked(vm.envString("SALT_HARVEST")));
 
         harvest = new Harvest{salt: salt}(
-            msg.sender,
+            vm.envAddress("ADDRESS_DEPLOYER"),
             vm.envAddress("ADDRESS_BARN"),
             vm.envAddress("ADDRESS_CONTRACT_BID_TICKET")
         );

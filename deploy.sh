@@ -26,7 +26,8 @@ anvil() {
 
 testnet() {
     local rpcUrl=$1
-    
+    local script=$2
+
     if [ -z "$rpcUrl" ]; then
         echo "Missing rpcUrl"
         exit 1
@@ -37,12 +38,13 @@ testnet() {
         exit 1
     fi
 
-    forge script script/DeployAllTestnet.s.sol:DeployAllTestnet \
+    forge script $script \
         -vvvv \
         --rpc-url "$rpcUrl" \
         --optimize \
         --optimizer-runs 10000 \
         --gas-estimate-multiplier 200 \
+        --legacy \
         --verify \
         --sender "$ADDRESS_DEPLOYER" \
         --interactives 1 \
@@ -68,6 +70,7 @@ mainnet() {
         --optimize \
         --optimizer-runs 10000 \
         --gas-estimate-multiplier 150 \
+        --legacy \
         --verify \
         --sender "$ADDRESS_DEPLOYER" \
         --interactives 1 \
@@ -79,13 +82,19 @@ case $1 in
         anvil
         ;;
     sepolia)
-        testnet https://eth-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY
+        testnet https://eth-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY script/DeployAllTestnet.s.sol:DeployAllTestnet
+        ;;
+    sepolia-harvest)
+        testnet https://eth-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY script/Harvest/DeployTestnet.s.sol:HarvestDeployTestnet
+        ;;
+    sepolia-auctions)
+        testnet https://eth-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY script/Auctions/DeployTestnet.s.sol:AuctionsDeployTestnet
         ;;
     goerli)
-        testnet https://eth-goerli.g.alchemy.com/v2/$ALCHEMY_API_KEY
+        testnet https://eth-goerli.g.alchemy.com/v2/$ALCHEMY_API_KEY script/DeployAllTestnet.s.sol:DeployAllTestnet
         ;;
     mumbai)
-        testnet https://polygon-mumbai.g.alchemy.com/v2/$ALCHEMY_API_KEY
+        testnet https://polygon-mumbai.g.alchemy.com/v2/$ALCHEMY_API_KEY script/DeployAllTestnet.s.sol:DeployAllTestnet
         ;;
     mainnet)
         mainnet https://eth-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY
