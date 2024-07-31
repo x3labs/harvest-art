@@ -7,18 +7,13 @@ import "../../src/Auctions.sol";
 import "./Deploy.s.sol";
 
 contract DeployTestnet is Script {
-    Auctions auctions;
-
     function run() external {
-        new Deploy().run();
+        Auctions auctions = Auctions(new Deploy().run());
 
-        vm.startBroadcast();
-
-        auctions = Auctions(vm.envAddress("ADDRESS_CONTRACT_AUCTIONS"));
+        vm.startBroadcast(vm.envAddress("ADDRESS_DEPLOYER"));
         auctions.setMinStartingBid(0.001 ether);
         auctions.setMinBidIncrement(0.001 ether);
         auctions.setAuctionDuration(1 hours);
-
         vm.stopBroadcast();
     }
 }

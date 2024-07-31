@@ -21,11 +21,10 @@ contract Factory is Script {
         vm.broadcast();
         address contractAddress = factory.safeCreate2(_salt, initCodeWithArgs);
 
-        console2.log(friendlyName);
-        console2.log("initCodeHash:");
+        console2.log(friendlyName, contractAddress);
+        console2.log("--- init code hash for create2crunch ---");
         console2.logBytes32(keccak256(initCodeWithArgs));
-        console2.log("contract address:");
-        console2.logAddress(contractAddress);
+        
 
         return contractAddress;
     }

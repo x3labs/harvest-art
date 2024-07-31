@@ -3,20 +3,15 @@ pragma solidity ^0.8.25;
 
 import "forge-std/console.sol";
 import "forge-std/Script.sol";
-import {Deploy as DeployBidTicket} from "./BidTicket/Deploy.s.sol";
-import {Deploy as DeployHarvest} from "./Harvest/Deploy.s.sol";
-import {Deploy as DeployAuctions} from "./Auctions/Deploy.s.sol";
-import {TestnetSettings} from "./Auctions/TestnetSettings.s.sol";
-import {TestnetMint} from "./BidTicket/TestnetMint.s.sol";
+import {DeployTestnet as DeployBidTicket} from "./BidTicket/DeployTestnet.s.sol";
+import {DeployTestnet as DeployHarvest} from "./Harvest/DeployTestnet.s.sol";
+import {DeployTestnet as DeployAuctions} from "./Auctions/DeployTestnet.s.sol";
 
 contract DeployAll is Script {
     function run() external {
         address bidTicketAddress = new DeployBidTicket().run();
         address harvestAddress = new DeployHarvest().run();
         address auctionsAddress = new DeployAuctions().run();
-
-        new TestnetSettings().run();
-        new TestnetMint().run();
 
         console.log("BidTicket Address: %s", bidTicketAddress);
         console.log("Harvest Address: %s", harvestAddress);
