@@ -26,3 +26,5 @@ coverage/
 
 # Local files
 .vscode/
+.cursorignore
+.DS_Store
