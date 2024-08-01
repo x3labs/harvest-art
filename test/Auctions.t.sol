@@ -370,6 +370,116 @@ contract AuctionsTest is Test {
         assertEq(mock1155.balanceOf(user2, tokenIds[2]), 1, "Should own token 2");
     }
 
+    function test_claim_Success_MultipleBids() public {
+        auctions.setOutbidRewardPercent(0);
+        
+        uint256 auctionId = auctions.nextAuctionId();
+        uint256 startingBid = 0.05 ether;
+
+        vm.startPrank(user1);
+        auctions.startAuctionERC721{value: startingBid}(startingBid, address(mock721), tokenIds);
+        vm.stopPrank();
+
+        address[] memory bidders = new address[](5);
+        uint256[] memory bidAmounts = new uint256[](5);
+
+        for (uint256 i = 0; i < 5; i++) {
+            bidders[i] = address(uint160(i + 1000));
+            bidTicket.mint(bidders[i], 1, 100);
+            bidAmounts[i] = startingBid + (i + 1) * 0.01 ether;
+            vm.deal(bidders[i], bidAmounts[i]);
+            vm.prank(bidders[i]);
+            auctions.bid{value: bidAmounts[i]}(auctionId, bidAmounts[i]);
+        }
+
+        address highestBidder = bidders[4];
+
+        skip(60 * 60 * 24 * 7 + 1);
+
+        for (uint256 i = 0; i < 4; i++) {
+            assertEq(auctions.balances(bidders[i]), bidAmounts[i], "Outbid bidder balance should be correct");
+        }
+
+        assertEq(auctions.balances(highestBidder), 0, "Highest bidder should have no balance in contract");
+
+        vm.prank(highestBidder);
+        auctions.claim(auctionId);
+
+        (,,,, Status status,,,,) = auctions.auctions(auctionId);
+        assertTrue(status == Status.Claimed, "Auction should be marked as claimed");
+        assertEq(mock721.ownerOf(tokenIds[0]), highestBidder, "Highest bidder should own token 0");
+        assertEq(mock721.ownerOf(tokenIds[1]), highestBidder, "Highest bidder should own token 1");
+        assertEq(mock721.ownerOf(tokenIds[2]), highestBidder, "Highest bidder should own token 2");
+
+        for (uint256 i = 0; i < 4; i++) {
+            assertEq(auctions.balances(bidders[i]), bidAmounts[i], "Outbid bidder balance should remain unchanged");
+        }
+
+        assertEq(auctions.balances(highestBidder), 0, "Highest bidder should still have no balance in contract");
+    }
+
+    function test_claim_Success_2000Bids() public {
+        auctions.setMinBidIncrement(0.001 ether);
+        auctions.setOutbidRewardPercent(0);
+
+        uint256 auctionId = auctions.nextAuctionId();
+        uint256 startingBid = 0.05 ether;
+
+        vm.startPrank(user1);
+        auctions.startAuctionERC721{value: startingBid}(startingBid, address(mock721), tokenIds);
+        vm.stopPrank();
+
+        uint256 numBids = 2000;
+        address[] memory bidders = new address[](numBids);
+        uint256[] memory bidAmounts = new uint256[](numBids);
+        
+        for (uint256 i = 0; i < numBids; i++) {
+            bidders[i] = address(uint160(i + 1000));
+            bidTicket.mint(bidders[i], 1, 100);
+            bidAmounts[i] = startingBid + (i + 1) * 0.001 ether;
+            vm.deal(bidders[i], bidAmounts[i]);
+            vm.prank(bidders[i]);
+            auctions.bid{value: bidAmounts[i]}(auctionId, bidAmounts[i]);
+        }
+
+        address highestBidder = bidders[numBids - 1];
+
+        skip(60 * 60 * 24 * 7 + 1);
+
+        for (uint256 i = 0; i < numBids - 1; i += 50) {
+            assertEq(auctions.balances(bidders[i]), bidAmounts[i], "Outbid bidder balance should be correct");
+        }
+
+        assertEq(auctions.balances(highestBidder), 0, "Highest bidder should have no balance in contract");
+
+        uint256 gasStart = gasleft();
+        vm.prank(highestBidder);
+        auctions.claim(auctionId);
+        uint256 gasUsed = gasStart - gasleft();
+
+        console.log("Gas used for claim:", gasUsed);
+
+        (,,,, Status status,,,,) = auctions.auctions(auctionId);
+        assertTrue(status == Status.Claimed, "Auction should be marked as claimed");
+        assertEq(mock721.ownerOf(tokenIds[0]), highestBidder, "Highest bidder should own token 0");
+        assertEq(mock721.ownerOf(tokenIds[1]), highestBidder, "Highest bidder should own token 1");
+        assertEq(mock721.ownerOf(tokenIds[2]), highestBidder, "Highest bidder should own token 2");
+
+        for (uint256 i = 0; i < numBids - 1; i += 50) {
+            assertEq(auctions.balances(bidders[i]), bidAmounts[i], "Outbid bidder balance should remain unchanged");
+        }
+
+        assertEq(auctions.balances(highestBidder), 0, "Highest bidder should still have no balance in contract");
+
+        for (uint256 i = 0; i < numBids - 1; i++) {
+            uint256 balanceBefore = bidders[i].balance;
+            vm.prank(bidders[i]);
+            auctions.withdrawBalance();
+            assertEq(bidders[i].balance, balanceBefore + bidAmounts[i], "Bidder should be able to withdraw their balance");
+            assertEq(auctions.balances(bidders[i]), 0, "Bidder balance in contract should be 0 after withdrawal");
+        }
+    }
+
     function test_claim_RevertIf_BeforeAuctionEnded() public {
         vm.startPrank(user1);
 

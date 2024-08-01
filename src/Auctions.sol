@@ -227,13 +227,13 @@ contract Auctions is Ownable {
             unchecked {
                 balances[prevHighestBidder] += prevHighestBid;
 
+                if (auction.rewards[prevHighestBidder] == 0) {
+                    auction.bidders[auction.bidCount] = prevHighestBidder;
+                    ++auction.bidCount;
+                }
+
                 uint256 reward = bidDelta * outbidRewardPercent / 100;
                 auction.rewards[prevHighestBidder] += reward;
-
-                if (auction.rewards[prevHighestBidder] == reward) {
-                    auction.bidders[auction.bidCount] = prevHighestBidder;
-                    auction.bidCount++;
-                }
             }
         }
 

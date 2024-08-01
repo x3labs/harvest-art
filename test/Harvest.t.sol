@@ -39,6 +39,7 @@ contract HarvestTest is Test {
         mock721.mint(user1, 200);
 
         mock1155 = new Mock1155();
+        mock1155.mint(user1, 1, 100, "");
         mock1155.mint(user2, 1, 10, "");
         mock1155.mint(user2, 8713622684881697175405882435050837487846425701885818202561849736562519048193, 10, "");
 
@@ -130,6 +131,72 @@ contract HarvestTest is Test {
         vm.startPrank(user1);
         mock721.setApprovalForAll(address(harvest), true);
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+    }
+
+    function test_batchTransfer_Success_MultipleERC721_WithAddressZero() public {
+        uint256 tokenCount = 100;
+        TokenType[] memory tokenTypes = new TokenType[](tokenCount);
+        address[] memory tokenContracts = new address[](tokenCount);
+        uint256[] memory tokenIds = new uint256[](tokenCount);
+        uint256[] memory counts = new uint256[](tokenCount);
+
+        for (uint256 i; i < tokenCount; i++) {
+            tokenTypes[i] = TokenType.ERC721;
+            tokenContracts[i] = i == 0 ? address(mock721) : address(0);
+            tokenIds[i] = i + 1;
+            counts[i] = 0;
+        }
+
+        harvest.setBarn(theBarn);
+        harvest.setMaxTokensPerTx(tokenCount);
+
+        vm.startPrank(user1);
+        mock721.setApprovalForAll(address(harvest), true);
+        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+
+        for (uint256 i = 1; i <= tokenCount; i++) {
+            assertEq(mock721.ownerOf(i), theBarn, "Token should be transferred to theBarn");
+        }
+
+        vm.stopPrank();
+    }
+
+    function test_batchTransfer_Success_Mixed_ERC721_ERC1155_WithAddressZero() public {
+        uint256 tokenCount = 100;
+        TokenType[] memory tokenTypes = new TokenType[](tokenCount);
+        address[] memory tokenContracts = new address[](tokenCount);
+        uint256[] memory tokenIds = new uint256[](tokenCount);
+        uint256[] memory counts = new uint256[](tokenCount);
+
+        for (uint256 i; i < 50; i++) {
+            tokenTypes[i] = TokenType.ERC721;
+            tokenContracts[i] = i == 0 ? address(mock721) : address(0);
+            tokenIds[i] = i + 1;
+            counts[i] = 0;
+        }
+
+        for (uint256 i = 50; i < tokenCount; i++) {
+            tokenTypes[i] = TokenType.ERC1155;
+            tokenContracts[i] = i == 50 ? address(mock1155) : address(0);
+            tokenIds[i] = 1;
+            counts[i] = 1;
+        }
+
+        harvest.setBarn(theBarn);
+        harvest.setMaxTokensPerTx(tokenCount);
+
+        vm.startPrank(user1);
+        mock721.setApprovalForAll(address(harvest), true);
+        mock1155.setApprovalForAll(address(harvest), true);
+        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+
+        for (uint256 i = 1; i < 50; i++) {
+            assertEq(mock721.ownerOf(i), theBarn, "Token should be transferred to theBarn");
+        }
+        
+        assertEq(mock1155.balanceOf(theBarn, 1), 50, "Token should be transferred to theBarn");
+
+        vm.stopPrank();
     }
 
     function test_batchTransfer_Success_ERC1155() public {
