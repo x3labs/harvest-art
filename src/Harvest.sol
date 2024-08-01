@@ -24,7 +24,7 @@ contract Harvest is Ownable {
     IBidTicket public bidTicket;
     address public theBarn;
     uint256 public pricePerSale = 1 gwei;
-    uint256 public maxTokensPerTx = 100;
+    uint256 public maxTokensPerTx = 500;
     uint256 public bidTicketTokenId = 1;
 
     error InvalidParamsLength();
