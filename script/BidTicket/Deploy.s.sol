@@ -10,7 +10,7 @@ contract Deploy is Factory {
     function run() external returns (address){
         bytes memory initCode = abi.encodePacked(type(BidTicket).creationCode);
         bytes memory args = abi.encode(vm.envAddress("ADDRESS_DEPLOYER"));
-        bytes32 salt = 0x000000000000000000000000000000000000000069fc980fba66661405000090;
+        bytes32 salt = vm.envBytes32("SALT_BID_TICKET");
 
         address bidTicketAddress = deploy("BidTicket", initCode, salt, args);
         

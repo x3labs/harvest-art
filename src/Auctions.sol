@@ -79,6 +79,7 @@ contract Auctions is Ownable {
     error IsHighestBidder();
     error MaxTokensPerTxReached();
     error NoBalanceToWithdraw();
+    error NoRewardsToClaim();
     error NotEnoughTokensInSupply();
     error NotHighestBidder();
     error SettlementPeriodNotExpired();
@@ -257,13 +258,13 @@ contract Auctions is Ownable {
 
         if (auction.status != Status.Active) revert InvalidStatus();
         if (block.timestamp < auction.endTime) revert AuctionNotEnded();
-        if (msg.sender != auction.highestBidder) revert NotHighestBidder();
+        if (msg.sender != auction.highestBidder && msg.sender != owner()) revert NotHighestBidder();
 
         auction.status = Status.Claimed;
         
         _distributeRewards(auction);
 
-        emit Claimed(auctionId, msg.sender);
+        emit Claimed(auctionId, auction.highestBidder);
 
         if (auction.auctionType == AUCTION_TYPE_ERC721) {
             _transferERC721s(auction);
@@ -278,6 +279,7 @@ contract Auctions is Ownable {
      * @param auctionId - The id of the auction to refund
      *
      */
+
     function refund(uint256 auctionId) external {
         Auction storage auction = auctions[auctionId];
         uint256 highestBid = auction.highestBid;
@@ -286,11 +288,11 @@ contract Auctions is Ownable {
         if (auction.status != Status.Active) revert InvalidStatus();
         if (block.timestamp < endTime) revert AuctionActive();
         if (block.timestamp > endTime + settlementDuration) revert SettlementPeriodEnded();
-        if (msg.sender != auction.highestBidder) revert NotHighestBidder();
+        if (msg.sender != auction.highestBidder && msg.sender != owner()) revert NotHighestBidder();
 
         auction.status = Status.Refunded;
 
-        emit Refunded(auctionId, msg.sender, highestBid);
+        emit Refunded(auctionId, auction.highestBidder, highestBid);
 
         if (auction.auctionType == AUCTION_TYPE_ERC721) {
             _checkAndResetERC721s(auction);
@@ -298,8 +300,9 @@ contract Auctions is Ownable {
             _checkAndResetERC1155s(auction);
         }
 
-        (bool success,) = payable(msg.sender).call{value: highestBid}("");
-        if (!success) revert TransferFailed();
+        unchecked {
+            balances[auction.highestBidder] += highestBid;
+        }
     }
 
     /**
@@ -417,6 +420,24 @@ contract Auctions is Ownable {
         }
 
         return totalRewards;
+    }
+
+    function getClaimedAuctions(uint256 limit) external view returns (uint256[] memory) {
+        uint256[] memory claimedAuctions = new uint256[](limit);
+        uint256 count = 0;
+
+        for (uint256 i = nextAuctionId - 1; i > 0 && count < limit; --i) {
+            if (auctions[i].status == Status.Claimed) {
+                claimedAuctions[count] = i;
+                unchecked { ++count; }
+            }
+        }
+
+        assembly {
+            mstore(claimedAuctions, count)
+        }
+
+        return claimedAuctions;
     }
 
     function setBarnAddress(address theBarn_) external onlyOwner {
@@ -677,4 +698,5 @@ contract Auctions is Ownable {
         }
     }
 }
+
 

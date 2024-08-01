@@ -16,7 +16,7 @@ contract Deploy is Factory {
             vm.envAddress("ADDRESS_BARN"), 
             vm.envAddress("ADDRESS_CONTRACT_BID_TICKET")
         );
-        bytes32 salt = 0x0000000000000000000000000000000000000000ef1cd16ea046cb45440000c0;
+        bytes32 salt = vm.envBytes32("SALT_AUCTIONS");
 
         return deploy("Auctions", initCode, salt, args);
     }

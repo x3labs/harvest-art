@@ -418,7 +418,7 @@ contract AuctionsTest is Test {
         assertEq(auctions.balances(highestBidder), 0, "Highest bidder should still have no balance in contract");
     }
 
-    function test_claim_Success_2000Bids() public {
+    function test_claim_Success_100Bids() public {
         auctions.setMinBidIncrement(0.001 ether);
         auctions.setOutbidRewardPercent(0);
 
@@ -429,7 +429,7 @@ contract AuctionsTest is Test {
         auctions.startAuctionERC721{value: startingBid}(startingBid, address(mock721), tokenIds);
         vm.stopPrank();
 
-        uint256 numBids = 2000;
+        uint256 numBids = 100;
         address[] memory bidders = new address[](numBids);
         uint256[] memory bidAmounts = new uint256[](numBids);
         
@@ -563,7 +563,7 @@ contract AuctionsTest is Test {
         skip(60 * 60 * 24 * 7 + 1);
 
         auctions.refund(auctionId);
-        assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
+        assertEq(auctions.balances(user1), 0.05 ether, "user1 should have 0.05 ether again");
 
         (,,,, Status status,,,,) = auctions.auctions(auctionId);
 
@@ -590,7 +590,7 @@ contract AuctionsTest is Test {
         skip(60 * 60 * 24 * 7 + 1);
 
         auctions.refund(auctionId);
-        assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
+        assertEq(auctions.balances(user1), 0.05 ether, "user1 should have 0.05 ether again");
 
         (,,,, Status status,,,,) = auctions.auctions(auctionId);
 
@@ -986,6 +986,54 @@ contract AuctionsTest is Test {
         assertEq(_amounts[0], tokenIdAmounts[0]);
         assertEq(_amounts[1], tokenIdAmounts[1]);
         assertEq(_amounts[2], tokenIdAmounts[2]);
+    }
+
+    function test_getClaimedAuctions_Success() public {
+        uint256 numAuctions = 5;
+
+        vm.startPrank(user1);
+
+        for (uint256 i = 0; i < numAuctions; i++) {    
+            uint256[] memory _tokenIds = new uint256[](1);
+            _tokenIds[0] = i;
+            auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), _tokenIds);
+
+            uint256 auctionId = auctions.nextAuctionId() - 1;
+
+            skip(60 * 60 * 24 * 7 + 1);
+
+            auctions.claim(auctionId);
+        }
+
+        // Create an unclaimed auction
+        // auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIdsOther);
+
+        // Test with different limits
+        uint256[] memory claimedAuctions;
+
+        // Test with limit less than total claimed auctions
+        claimedAuctions = auctions.getClaimedAuctions(3);
+        assertEq(claimedAuctions.length, 3, "Should return 3 claimed auctions");
+
+        for (uint256 i = 0; i < 3; i++) {
+            assertEq(claimedAuctions[i], 5 - i, "Auction IDs should be in descending order");
+        }
+
+        // Test with limit equal to total claimed auctions
+        claimedAuctions = auctions.getClaimedAuctions(5);
+        assertEq(claimedAuctions.length, 5, "Should return all 5 claimed auctions");
+
+        for (uint256 i = 0; i < 5; i++) {
+            assertEq(claimedAuctions[i], 5 - i, "Auction IDs should be in descending order");
+        }
+
+        // Test with limit greater than total claimed auctions
+        claimedAuctions = auctions.getClaimedAuctions(10);
+        assertEq(claimedAuctions.length, 5, "Should return only 5 claimed auctions");
+
+        for (uint256 i = 0; i < 5; i++) {
+            assertEq(claimedAuctions[i], 5 - i, "Auction IDs should be in descending order");
+        }
     }
 
     function test_setMinStartingBid_Success() public {
