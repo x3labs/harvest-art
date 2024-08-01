@@ -407,11 +407,11 @@ contract Auctions is Ownable {
         return (tokenIds, amounts);
     }
 
-    function getRewards(address bidder, uint256[] calldata auctionIds) external view returns (uint256) {
+    function getPendingRewards(address bidder, uint256[] calldata auctionIds) external view returns (uint256) {
         uint256 totalRewards;
 
         for (uint256 i; i < auctionIds.length; ++i) {
-            if (auctions[auctionIds[i]].status == Status.Claimed) {
+            if (auctions[auctionIds[i]].status == Status.Active) {
                 totalRewards += auctions[auctionIds[i]].rewards[bidder];
             }
         }

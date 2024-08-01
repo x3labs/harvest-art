@@ -27,12 +27,12 @@ contract Harvest is Ownable {
     uint256 public maxTokensPerTx = 100;
     uint256 public bidTicketTokenId = 1;
 
-    error InvalidTokenContractLength();
     error InvalidParamsLength();
+    error InvalidTokenContractLength();
+    error InvalidTokenType();
     error MaxTokensPerTxReached();
     error TransferFailed();
-    error InvalidTokenType();
-
+    
     event BatchTransfer(address indexed user, uint256 indexed totalTokens);
 
     constructor(address owner_, address theBarn_, address bidTicket_) {
@@ -59,19 +59,23 @@ contract Harvest is Ownable {
 
         uint256 totalTokens;
         uint256 totalPrice;
+        address currentContract = contracts[0];
 
         for (uint256 i; i < length; ++i) {
             TokenType tokenType = types[i];
-            address tokenContract = contracts[i];
+            address tokenContract = contracts[i] == address(0) ? currentContract : contracts[i];
             uint256 tokenId = tokenIds[i];
             uint256 count = counts[i];
+
+            currentContract = tokenContract;
 
             if (tokenType == TokenType.ERC20) {
                 unchecked {
                     ++totalTokens;
                     totalPrice += pricePerSale;
                 }
-                IERC20(tokenContract).transferFrom(msg.sender, theBarn, count);
+                bool success = IERC20(tokenContract).transferFrom(msg.sender, theBarn, count);
+                if (!success) revert TransferFailed();
             } else if (tokenType == TokenType.ERC721) {
                 unchecked {
                     ++totalTokens;
@@ -130,4 +134,3 @@ contract Harvest is Ownable {
 
     fallback() external payable {}
 }
-
