@@ -241,7 +241,7 @@ contract AuctionsTest is Test {
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
         (,, uint256 endTimeA,,,,,,) = auctions.auctions(1);
 
-        skip(60 * 60 * 24 * 7 - 59 * 59); // 1 second before auction ends
+        skip(60 * 60 * 24 * 3 - 1); // 1 second before auction ends
 
         vm.startPrank(user2);
         auctions.bid{value: 0.06 ether}(1, 0.06 ether);
@@ -1134,5 +1134,154 @@ contract AuctionsTest is Test {
         vm.prank(vm.addr(69));
         vm.expectRevert(bytes4(keccak256("Unauthorized()")));
         auctions.setSettlementDuration(60 * 60 * 24 * 7);
+    }
+
+    function test_outbidRewards_Success() public {
+        auctions.setOutbidRewardPercent(10); // 10% outbid reward
+
+        vm.startPrank(user1);
+        auctions.startAuctionERC721{value: 0.1 ether}(0.1 ether, address(mock721), tokenIds);
+        vm.stopPrank();
+
+        assertEq(auctions.balances(user1), 0, "User1 should have no balance yet");
+
+        vm.startPrank(user2);
+        auctions.bid{value: 0.2 ether}(1, 0.2 ether);
+        vm.stopPrank();
+
+        assertEq(auctions.balances(user1), 0.1 ether, "User1 should have refund");
+
+        vm.startPrank(user1);
+        auctions.bid{value: 0.2 ether}(1, 0.3 ether);
+        vm.stopPrank();
+
+        assertEq(auctions.balances(user2), 0.2 ether, "User2 should have refund");
+
+        vm.startPrank(user2);
+        auctions.bid{value: 0.2 ether}(1, 0.4 ether);
+        vm.stopPrank();
+
+        assertEq(auctions.balances(user1), 0.3 ether, "User1 should have refund");
+
+        skip(60 * 60 * 24 * 7 + 1);
+
+        vm.prank(user2);
+        auctions.claim(1);
+
+        assertEq(auctions.balances(user1), 0.3 ether + 0.02 ether, "User1's balance should only include reward");
+        assertEq(auctions.balances(user2), 0 ether + 0.01 ether, "User2's balance should include reward + refunded bid");
+    }
+
+    function test_outbidRewards_MultipleBidders() public {
+        auctions.setOutbidRewardPercent(5); // 5% outbid reward
+
+        vm.startPrank(user1);
+        auctions.startAuctionERC721{value: 0.1 ether}(0.1 ether, address(mock721), tokenIds);
+        vm.stopPrank();
+
+        address user3 = vm.addr(4);
+        address user4 = vm.addr(5);
+        vm.deal(user3, 1 ether);
+        vm.deal(user4, 1 ether);
+        bidTicket.mint(user3, 1, 100);
+        bidTicket.mint(user4, 1, 100);
+
+        vm.prank(user2);
+        auctions.bid{value: 0.2 ether}(1, 0.2 ether);
+
+        vm.prank(user3);
+        auctions.bid{value: 0.3 ether}(1, 0.3 ether);
+
+        vm.prank(user4);
+        auctions.bid{value: 0.4 ether}(1, 0.4 ether);
+
+        vm.prank(user1);
+        auctions.bid{value: 0.4 ether}(1, 0.5 ether);
+
+        vm.prank(user2);
+        auctions.bid{value: 0.4 ether}(1, 0.6 ether);
+
+        skip(60 * 60 * 24 * 3 + 1);
+        
+        vm.prank(user2);
+        auctions.claim(1);
+    }
+
+    function test_outbidRewards_ZeroPercent() public {
+        auctions.setOutbidRewardPercent(0); // 0% outbid reward
+
+        vm.startPrank(user1);
+        auctions.startAuctionERC721{value: 0.1 ether}(0.1 ether, address(mock721), tokenIds);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        auctions.bid{value: 0.2 ether}(1, 0.2 ether);
+        vm.stopPrank();
+
+        assertEq(auctions.balances(user1) - 0.1 ether, 0, "User1 should not receive any outbid reward");
+
+        vm.startPrank(user1);
+        auctions.bid{value: 0.2 ether}(1, 0.3 ether);
+        vm.stopPrank();
+
+        assertEq(auctions.balances(user2) - 0.2 ether, 0, "User2 should not receive any outbid reward");
+    }
+
+    function test_outbidRewards_MaxPercent() public {
+        auctions.setOutbidRewardPercent(100); // 100% outbid reward (extreme case)
+
+        vm.startPrank(user1);
+        auctions.startAuctionERC721{value: 0.1 ether}(0.1 ether, address(mock721), tokenIds);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        auctions.bid{value: 0.2 ether}(1, 0.2 ether);
+        vm.stopPrank();
+
+        assertEq(auctions.balances(user1), 0.1 ether, "User1 should receive 100% outbid reward");
+
+        vm.startPrank(user1);
+        auctions.bid{value: 0.2 ether}(1, 0.3 ether);
+        vm.stopPrank();
+
+        assertEq(auctions.balances(user2), 0.2 ether, "User2 should receive 100% outbid reward");
+    }
+
+    function testFuzz_outbidRewards(uint8 rewardPercent, uint256 initialBid, uint256 secondBidDelta) public {
+        vm.assume(rewardPercent <= 100);
+        vm.assume(initialBid >= 0.05 ether && initialBid < 100 ether);
+        vm.assume(secondBidDelta > 0 && secondBidDelta < 1000 ether);
+
+        uint256 secondBid = initialBid + 0.01 ether + secondBidDelta;
+
+        auctions.setOutbidRewardPercent(rewardPercent);
+
+        vm.deal(user1, initialBid);
+        vm.deal(user2, secondBid);
+
+        vm.prank(user1);
+        auctions.startAuctionERC721{value: initialBid}(initialBid, address(mock721), tokenIds);
+
+        uint256[] memory auctionIds = new uint256[](1);
+        auctionIds[0] = 1;
+
+        uint256 rewards = auctions.getPendingRewards(user1, auctionIds);
+        assertEq(rewards, 0, "User1 should not have pending rewards");
+
+        vm.prank(user2);
+        auctions.bid{value: secondBid}(1, secondBid);
+
+        skip(60 * 60 * 24 * 3 + 1);
+
+        assertEq(auctions.balances(user1), initialBid, "User1 should have no rewards yet");
+
+        uint256 expectedReward = initialBid * rewardPercent / 100;
+        rewards = auctions.getPendingRewards(user1, auctionIds);
+        assertEq(rewards, expectedReward, "User1 should have pending rewards");
+
+        vm.prank(user2);
+        auctions.claim(1);
+        
+        assertEq(auctions.balances(user1), initialBid + expectedReward, "User1 should receive the correct outbid reward");
     }
 }

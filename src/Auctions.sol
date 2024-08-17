@@ -34,7 +34,7 @@ struct Auction {
     address highestBidder;
     uint256 highestBid;
     uint256 bidDelta;
-    uint256 bidCount;
+    uint256 bidderCount;
     mapping(uint256 => address) bidders;
     mapping(uint256 => uint256) tokenIds;
     mapping(uint256 => uint256) amounts;
@@ -51,11 +51,11 @@ contract Auctions is Ownable {
     uint256 public bidTicketTokenId = 1;
     uint256 public bidTicketCostStart = 1;
     uint256 public bidTicketCostBid = 1;
-    uint256 public maxTokens = 10;
+    uint256 public maxTokens = 50;
     uint256 public nextAuctionId = 1;
     uint256 public minStartingBid = 0.05 ether;
     uint256 public minBidIncrement = 0.01 ether;
-    uint256 public auctionDuration = 7 days;
+    uint256 public auctionDuration = 3 days;
     uint256 public settlementDuration = 7 days;
     uint256 public antiSnipeDuration = 1 hours;
     uint256 public abandonmentFeePercent = 20;
@@ -131,6 +131,8 @@ contract Auctions is Ownable {
         auction.highestBidder = msg.sender;
         auction.highestBid = startingBid;
         auction.tokenCount = uint8(tokenIds.length);
+        auction.bidderCount = 1;
+        auction.bidDelta = startingBid;
 
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
 
@@ -179,6 +181,8 @@ contract Auctions is Ownable {
         auction.highestBidder = msg.sender;
         auction.highestBid = startingBid;
         auction.tokenCount = uint8(tokenIds.length);
+        auction.bidderCount = 1;
+        auction.bidDelta = startingBid;
 
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
         mapping(uint256 => uint256) storage amountMap = auction.amounts;
@@ -222,20 +226,23 @@ contract Auctions is Ownable {
 
         address prevHighestBidder = auction.highestBidder;
         uint256 prevHighestBid = auction.highestBid;
-        uint256 bidDelta = bidAmount - prevHighestBid;
 
-        if (prevHighestBidder != address(0)) {
-            unchecked {
-                balances[prevHighestBidder] += prevHighestBid;
+        unchecked {
+            // Return the previous bidder's bid to their balance
+            balances[prevHighestBidder] += prevHighestBid;
 
-                if (auction.rewards[prevHighestBidder] == 0) {
-                    auction.bidders[auction.bidCount] = prevHighestBidder;
-                    ++auction.bidCount;
-                }
-
-                uint256 reward = bidDelta * outbidRewardPercent / 100;
-                auction.rewards[prevHighestBidder] += reward;
+            // Add new bidder to the bidders list
+            if (auction.rewards[prevHighestBidder] == 0) {
+                auction.bidders[auction.bidderCount - 1] = prevHighestBidder;
+                ++auction.bidderCount;
             }
+
+            // Calculate the reward for user who was outbid
+            uint256 reward = auction.bidDelta * outbidRewardPercent / 100;
+            auction.rewards[prevHighestBidder] += reward;
+
+            // Update the bid delta for future potential outbids
+            auction.bidDelta = bidAmount - prevHighestBid;
         }
 
         auction.highestBidder = msg.sender;
@@ -686,7 +693,7 @@ contract Auctions is Ownable {
     }
 
     function _distributeRewards(Auction storage auction) internal {
-        for (uint256 i; i < auction.bidCount; ++i) {
+        for (uint256 i; i < auction.bidderCount; ++i) {
             address bidder = auction.bidders[i];
             uint256 reward = auction.rewards[bidder];
 

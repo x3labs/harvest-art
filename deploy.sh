@@ -136,6 +136,7 @@ deploy() {
         --gas-estimate-multiplier 150 \
         --legacy \
         --verify \
+        --retries 100 \
         --sender "$ADDRESS_DEPLOYER" \
         --interactives 1 \
         --broadcast

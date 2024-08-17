@@ -23,7 +23,7 @@ enum TokenType { ERC20, ERC721, ERC1155 }
 contract Harvest is Ownable {
     IBidTicket public bidTicket;
     address public theBarn;
-    uint256 public pricePerSale = 1 gwei;
+    uint256 public price = 1 gwei;
     uint256 public maxTokensPerTx = 500;
     uint256 public bidTicketTokenId = 1;
 
@@ -64,30 +64,28 @@ contract Harvest is Ownable {
         for (uint256 i; i < length; ++i) {
             TokenType tokenType = types[i];
             address tokenContract = contracts[i] == address(0) ? currentContract : contracts[i];
-            uint256 tokenId = tokenIds[i];
-            uint256 count = counts[i];
-
             currentContract = tokenContract;
 
             if (tokenType == TokenType.ERC20) {
                 unchecked {
                     ++totalTokens;
-                    totalPrice += pricePerSale;
+                    totalPrice += price;
                 }
-                bool success = IERC20(tokenContract).transferFrom(msg.sender, theBarn, count);
+                bool success = IERC20(tokenContract).transferFrom(msg.sender, theBarn, counts[i]);
                 if (!success) revert TransferFailed();
             } else if (tokenType == TokenType.ERC721) {
                 unchecked {
                     ++totalTokens;
-                    totalPrice += pricePerSale;
+                    totalPrice += price;
                 }
-                IERC721(tokenContract).transferFrom(msg.sender, theBarn, tokenId);
+                IERC721(tokenContract).transferFrom(msg.sender, theBarn, tokenIds[i]);
             } else if (tokenType == TokenType.ERC1155) {
+                uint256 count = counts[i];
                 unchecked {
                     totalTokens += count;
-                    totalPrice += pricePerSale * count;
+                    totalPrice += price * count;
                 }
-                IERC1155(tokenContract).safeTransferFrom(msg.sender, theBarn, tokenId, count, "");
+                IERC1155(tokenContract).safeTransferFrom(msg.sender, theBarn, tokenIds[i], count, "");
             } else {
                 revert InvalidTokenType();
             }
@@ -110,7 +108,7 @@ contract Harvest is Ownable {
     }
 
     function setPrice(uint256 _price) public onlyOwner {
-        pricePerSale = _price;
+        price = _price;
     }
 
     function setMaxTokensPerTx(uint256 _maxTokensPerTx) public onlyOwner {

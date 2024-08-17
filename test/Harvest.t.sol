@@ -51,50 +51,6 @@ contract HarvestTest is Test {
         vm.deal(user2, 1 ether);
     }
 
-    function test_batchTransfer_RevertIf_EmptyTokenContracts() public {
-        vm.expectRevert(bytes4(keccak256("InvalidTokenContractLength()")));
-
-        TokenType[] memory tokenTypes = new TokenType[](0);
-        address[] memory tokenContracts = new address[](0);
-        uint256[] memory tokenIds = new uint256[](0);
-        uint256[] memory counts = new uint256[](0);
-
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
-    }
-
-    function test_batchTransfer_RevertIf_MismatchedLengths() public {
-        vm.expectRevert(bytes4(keccak256("InvalidParamsLength()")));
-
-        TokenType[] memory tokenTypes = new TokenType[](2);
-        address[] memory tokenContracts = new address[](2);
-        uint256[] memory tokenIds = new uint256[](1);
-        uint256[] memory counts = new uint256[](1);
-
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
-    }
-
-    function test_batchTransfer_RevertIf_ExceedMaxTokensPerTx() public {
-        harvest.setMaxTokensPerTx(10);
-
-        TokenType[] memory tokenTypes = new TokenType[](11);
-        address[] memory tokenContracts = new address[](11);
-        uint256[] memory tokenIds = new uint256[](11);
-        uint256[] memory counts = new uint256[](11);
-
-        for (uint256 i; i < 11; i++) {
-            tokenTypes[i] = TokenType.ERC721;
-            tokenContracts[i] = address(mock721);
-            tokenIds[i] = i;
-            counts[i] = 0;
-        }
-
-        vm.startPrank(user1);
-        mock721.setApprovalForAll(address(harvest), true);
-
-        vm.expectRevert(bytes4(keccak256("MaxTokensPerTxReached()")));
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
-    }
-
     function test_batchTransfer_Success_ERC721() public {
         TokenType[] memory tokenTypes = new TokenType[](1);
         address[] memory tokenContracts = new address[](1);
@@ -274,6 +230,50 @@ contract HarvestTest is Test {
 
         assertEq(mockERC20.balanceOf(theBarn), 100, "theBarn should have received 100 tokens");
         assertEq(mockERC20.balanceOf(user2), 900, "user2 should have 900 tokens left");
+    }
+
+       function test_batchTransfer_RevertIf_EmptyTokenContracts() public {
+        vm.expectRevert(bytes4(keccak256("InvalidTokenContractLength()")));
+
+        TokenType[] memory tokenTypes = new TokenType[](0);
+        address[] memory tokenContracts = new address[](0);
+        uint256[] memory tokenIds = new uint256[](0);
+        uint256[] memory counts = new uint256[](0);
+
+        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+    }
+
+    function test_batchTransfer_RevertIf_MismatchedLengths() public {
+        vm.expectRevert(bytes4(keccak256("InvalidParamsLength()")));
+
+        TokenType[] memory tokenTypes = new TokenType[](2);
+        address[] memory tokenContracts = new address[](2);
+        uint256[] memory tokenIds = new uint256[](1);
+        uint256[] memory counts = new uint256[](1);
+
+        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+    }
+
+    function test_batchTransfer_RevertIf_ExceedMaxTokensPerTx() public {
+        harvest.setMaxTokensPerTx(10);
+
+        TokenType[] memory tokenTypes = new TokenType[](11);
+        address[] memory tokenContracts = new address[](11);
+        uint256[] memory tokenIds = new uint256[](11);
+        uint256[] memory counts = new uint256[](11);
+
+        for (uint256 i; i < 11; i++) {
+            tokenTypes[i] = TokenType.ERC721;
+            tokenContracts[i] = address(mock721);
+            tokenIds[i] = i;
+            counts[i] = 0;
+        }
+
+        vm.startPrank(user1);
+        mock721.setApprovalForAll(address(harvest), true);
+
+        vm.expectRevert(bytes4(keccak256("MaxTokensPerTxReached()")));
+        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
     }
 
     function test_withdrawBalance_Success() public {
