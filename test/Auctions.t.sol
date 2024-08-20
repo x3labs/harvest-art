@@ -237,6 +237,23 @@ contract AuctionsTest is Test {
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
     }
 
+    function test_bid_Success_BalanceGreaterThanBid() public {
+        vm.prank(user1);
+        auctions.startAuctionERC721{value: 0.1 ether}(0.1 ether, address(mock721), tokenIds);
+ 
+        vm.prank(user2);
+        auctions.bid{value: 0.2 ether}(1, 0.2 ether);
+
+        vm.prank(user2);
+        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIdsOther);
+
+        // user1 bids with balance only
+        vm.prank(user1);
+        auctions.bid(2, 0.09 ether);
+
+        assertEq(auctions.balances(user1), 0.01 ether, "User1 should have 0.01 ether balance");
+    }
+
     function test_bid_Success_LastMinuteBidding() public {
         vm.startPrank(user1);
 
