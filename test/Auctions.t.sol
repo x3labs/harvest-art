@@ -15,6 +15,7 @@ contract AuctionsTest is Test {
     Mock1155 public mock1155;
 
     address public theBarn;
+    address public theFarmer;
     address public user1;
     address public user2;
 
@@ -29,9 +30,10 @@ contract AuctionsTest is Test {
 
     function setUp() public {
         theBarn = vm.addr(1);
+        theFarmer = vm.addr(123);
 
         bidTicket = new BidTicket(address(this));
-        auctions = new Auctions(address(this), theBarn, address(bidTicket));
+        auctions = new Auctions(address(this), theBarn, theFarmer, address(bidTicket));
         mock721 = new Mock721();
         mock1155 = new Mock1155();
 
@@ -339,6 +341,8 @@ contract AuctionsTest is Test {
         assertEq(mock721.ownerOf(tokenIds[0]), user2, "Should own token 0");
         assertEq(mock721.ownerOf(tokenIds[1]), user2, "Should own token 1");
         assertEq(mock721.ownerOf(tokenIds[2]), user2, "Should own token 2");
+
+        assertEq(theFarmer.balance, 0.06 ether - 0.005 ether, "The farmer should have 0.055 ether in wallet");
     }
 
     function test_claim_Success_ERC1155() public {
@@ -368,6 +372,8 @@ contract AuctionsTest is Test {
         assertEq(mock1155.balanceOf(user2, tokenIds[0]), 1, "Should own token 0");
         assertEq(mock1155.balanceOf(user2, tokenIds[1]), 1, "Should own token 1");
         assertEq(mock1155.balanceOf(user2, tokenIds[2]), 1, "Should own token 2");
+
+        assertEq(theFarmer.balance, 0.06 ether - 0.005 ether, "The farmer should have 0.055 ether in wallet");
     }
 
     function test_claim_Success_MultipleBids() public {
@@ -416,6 +422,7 @@ contract AuctionsTest is Test {
         }
 
         assertEq(auctions.balances(highestBidder), 0, "Highest bidder should still have no balance in contract");
+        assertEq(theFarmer.balance, startingBid + (5 * 0.01 ether), "The farmer should have 0.055 ether in wallet");
     }
 
     function test_claim_Success_100Bids() public {
@@ -474,10 +481,12 @@ contract AuctionsTest is Test {
         for (uint256 i = 0; i < numBids - 1; i++) {
             uint256 balanceBefore = bidders[i].balance;
             vm.prank(bidders[i]);
-            auctions.withdrawBalance();
+            auctions.withdraw();
             assertEq(bidders[i].balance, balanceBefore + bidAmounts[i], "Bidder should be able to withdraw their balance");
             assertEq(auctions.balances(bidders[i]), 0, "Bidder balance in contract should be 0 after withdrawal");
         }
+
+        assertEq(theFarmer.balance, startingBid + (100 * 0.001 ether), "The farmer should have 0.055 ether in wallet");
     }
 
     function test_claim_RevertIf_BeforeAuctionEnded() public {
@@ -665,34 +674,6 @@ contract AuctionsTest is Test {
         auctions.refund(auctionId);
     }
 
-    function test_refund_Exploit() public {
-        vm.startPrank(user1);
-        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
-
-        // Start another auction to keep liquidity in contract
-        vm.startPrank(user2);
-        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIdsOther);
-
-        vm.startPrank(user1);
-        uint256 auctionId = auctions.nextAuctionId() - 2;
-        uint256[] memory auctionIds = new uint256[](1);
-        auctionIds[0] = auctionId;
-
-        skip(60 * 60 * 24 * 7 + 1);
-        auctions.claim(auctionId);
-
-        vm.startPrank(address(this));
-        auctions.withdraw(auctionIds);
-
-        (,,,, Status status,,,,) = auctions.auctions(auctionId);
-        assertTrue(status == Status.Withdrawn, "Auction should be marked as withdrawn");
-
-        vm.startPrank(user1);
-        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
-        auctions.refund(auctionId);
-        // assertEq(user1.balance, 1 ether, "user1 should have 1 ether again");
-    }
-
     //
     // abandon
     //
@@ -718,6 +699,8 @@ contract AuctionsTest is Test {
             startingBid - startingBid * auctions.abandonmentFeePercent() / 100,
             "user1 should have 1 ether - fee"
         );
+
+        assertEq(theFarmer.balance, startingBid * auctions.abandonmentFeePercent() / 100, "The farmer should have abandonment fee in wallet");
 
         (,,,, Status status,,,,) = auctions.auctions(auctionId);
 
@@ -750,6 +733,8 @@ contract AuctionsTest is Test {
             startingBid - startingBid * auctions.abandonmentFeePercent() / 100,
             "user1 should have 1 ether - fee"
         );
+
+        assertEq(theFarmer.balance, startingBid * auctions.abandonmentFeePercent() / 100, "The farmer should have abandonment fee in wallet");
 
         (,,,, Status status,,,,) = auctions.auctions(auctionId);
 
@@ -821,116 +806,6 @@ contract AuctionsTest is Test {
     function test_withdraw_Success() public {
         vm.startPrank(user1);
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
-
-        uint256 auctionId = auctions.nextAuctionId() - 1;
-        uint256[] memory auctionIds = new uint256[](1);
-        auctionIds[0] = auctionId;
-
-        skip(60 * 60 * 24 * 14 + 1); // the settlement period has ended
-        auctions.claim(auctionId);
-
-        vm.startPrank(address(this));
-        auctions.withdraw(auctionIds);
-
-        (,,,, Status status,,,,) = auctions.auctions(auctionId);
-        assertTrue(status == Status.Withdrawn, "Auction should be marked as withdrawn");
-    }
-
-    function test_withdraw_RevertIf_ActiveAuction() public {
-        vm.startPrank(user1);
-        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
-
-        uint256 auctionId = auctions.nextAuctionId() - 1;
-        uint256[] memory auctionIds = new uint256[](1);
-        auctionIds[0] = auctionId;
-
-        skip(60 * 60 * 24 * 1); // auction is still active
-
-        vm.startPrank(address(this));
-        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
-        auctions.withdraw(auctionIds);
-    }
-
-    function test_withdraw_RevertIf_SettlementPeriodActive() public {
-        vm.startPrank(user1);
-        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
-
-        uint256 auctionId = auctions.nextAuctionId() - 1;
-        uint256[] memory auctionIds = new uint256[](1);
-        auctionIds[0] = auctionId;
-
-        skip(60 * 60 * 24 * 7 + 1); // beginning of the settlement period
-
-        vm.startPrank(address(this));
-        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
-        auctions.withdraw(auctionIds);
-    }
-
-    function test_withdraw_RevertIf_AuctionWithdrawn() public {
-        vm.startPrank(user1);
-        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
-
-        uint256 auctionId = auctions.nextAuctionId() - 1;
-        uint256[] memory auctionIds = new uint256[](1);
-        auctionIds[0] = auctionId;
-
-        skip(60 * 60 * 24 * 7 + 1); // the settlement period has started
-        auctions.claim(auctionId);
-
-        skip(60 * 60 * 24 * 14 + 1); // the settlement period has ended
-        vm.startPrank(address(this));
-        auctions.withdraw(auctionIds);
-        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
-        auctions.withdraw(auctionIds);
-    }
-
-    function test_withdraw_RevertIf_AuctionNotClaimed() public {
-        vm.prank(theBarn);
-        mock721.setApprovalForAll(address(auctions), false);
-        uint256 auctionId = auctions.nextAuctionId();
-
-        vm.startPrank(user1);
-        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
-        skip(60 * 60 * 24 * 7 + 1);
-        auctions.refund(auctionId);
-        vm.stopPrank();
-
-        uint256[] memory auctionIds = new uint256[](1);
-        auctionIds[0] = auctionId;
-        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
-        auctions.withdraw(auctionIds);
-    }
-
-    function test_withdraw_RevertIf_AuctionAbandoned() public {
-        uint256 auctionId = auctions.nextAuctionId();
-
-        vm.prank(user1);
-        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
-
-        skip(60 * 60 * 24 * 14 + 1);
-
-        auctions.abandon(auctionId);
-
-        uint256[] memory auctionIds = new uint256[](1);
-        auctionIds[0] = auctionId;
-        vm.expectRevert(bytes4(keccak256("InvalidStatus()")));
-        auctions.withdraw(auctionIds);
-    }
-
-    function test_processPayment_Success() public {
-        vm.startPrank(user1);
-        uint256 initialBalance = address(auctions).balance;
-        uint256 bidAmount = 0.05 ether;
-
-        auctions.startAuctionERC721{value: bidAmount}(bidAmount, address(mock721), tokenIds);
-
-        assertEq(address(auctions).balance, initialBalance + bidAmount, "Contract balance should increase by bid amount");
-        assertEq(auctions.balances(user1), 0, "User balance in contract should be 0");
-    }
-
-    function test_withdrawBalance_Success() public {
-        vm.startPrank(user1);
-        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
         vm.stopPrank();
 
         vm.startPrank(user2);
@@ -942,10 +817,24 @@ contract AuctionsTest is Test {
         uint256 initialBalance = user1.balance;
 
         vm.prank(user1);
-        auctions.withdrawBalance();
+        auctions.withdraw();
 
         assertEq(user1.balance, initialBalance + 0.05 ether, "User1 balance should increase by 0.05 ether");
         assertEq(auctions.balances(user1), 0, "User1 balance in contract should be 0 after withdrawal");
+    }
+
+    //
+    // processPayment
+    //
+    function test_processPayment_Success() public {
+        vm.startPrank(user1);
+        uint256 initialBalance = address(auctions).balance;
+        uint256 bidAmount = 0.05 ether;
+
+        auctions.startAuctionERC721{value: bidAmount}(bidAmount, address(mock721), tokenIds);
+
+        assertEq(address(auctions).balance, initialBalance + bidAmount, "Contract balance should increase by bid amount");
+        assertEq(auctions.balances(user1), 0, "User balance in contract should be 0");
     }
 
     //
@@ -1004,9 +893,6 @@ contract AuctionsTest is Test {
 
             auctions.claim(auctionId);
         }
-
-        // Create an unclaimed auction
-        // auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIdsOther);
 
         // Test with different limits
         uint256[] memory claimedAuctions;

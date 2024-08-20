@@ -21,8 +21,7 @@ enum Status {
     Active,
     Claimed,
     Refunded,
-    Abandoned,
-    Withdrawn
+    Abandoned
 }
 
 struct Auction {
@@ -48,6 +47,8 @@ contract Auctions is Ownable {
     IBidTicket public bidTicket;
 
     address public theBarn;
+    address public theFarmer;
+
     uint256 public bidTicketTokenId = 1;
     uint256 public bidTicketCostStart = 1;
     uint256 public bidTicketCostBid = 1;
@@ -90,16 +91,21 @@ contract Auctions is Ownable {
     error TransferFailed();
 
     event Abandoned(uint256 indexed auctionId, address indexed bidder, uint256 indexed fee);
-    event AuctionStarted(address indexed bidder, address indexed tokenAddress, uint256[] indexed tokenIds);
     event Claimed(uint256 indexed auctionId, address indexed winner);
     event NewBid(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
     event Refunded(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
-    event Withdraw(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
-    event WithdrawBalance(address indexed user, uint256 indexed value);
+    event Started(address indexed bidder, address indexed tokenAddress, uint256[] indexed tokenIds);
+    event Withdraw(address indexed user, uint256 indexed value);
 
-    constructor(address owner_, address theBarn_, address bidTicket_) {
+    constructor(
+        address owner_,
+        address theBarn_,
+        address theFarmer_,
+        address bidTicket_
+    ) {
         _initializeOwner(owner_);
         theBarn = theBarn_;
+        theFarmer = theFarmer_;
         bidTicket = IBidTicket(bidTicket_);
     }
 
@@ -144,7 +150,7 @@ contract Auctions is Ownable {
             ++nextAuctionId;
         }
 
-        emit AuctionStarted(msg.sender, tokenAddress, tokenIds);
+        emit Started(msg.sender, tokenAddress, tokenIds);
         
         bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostStart);
 
@@ -196,7 +202,7 @@ contract Auctions is Ownable {
             ++nextAuctionId;
         }
 
-        emit AuctionStarted(msg.sender, tokenAddress, tokenIds);
+        emit Started(msg.sender, tokenAddress, tokenIds);
 
         bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostStart);
 
@@ -268,11 +274,14 @@ contract Auctions is Ownable {
         if (msg.sender != auction.highestBidder && msg.sender != owner()) revert NotHighestBidder();
 
         auction.status = Status.Claimed;
-        
-        _distributeRewards(auction);
+
+        uint256 totalRewards = _distributeRewards(auction);
 
         emit Claimed(auctionId, auction.highestBidder);
 
+        (bool success,) = payable(theFarmer).call{value: auction.highestBid - totalRewards}("");
+        if (!success) revert TransferFailed();
+        
         if (auction.auctionType == AUCTION_TYPE_ERC721) {
             _transferERC721s(auction);
         } else {
@@ -335,56 +344,34 @@ contract Auctions is Ownable {
             _resetERC1155s(auction);
         }
 
-        uint256 fee = highestBid * abandonmentFeePercent / 100;
+        uint256 fee;
 
-        balances[highestBidder] += highestBid - fee;
+        unchecked {
+            fee = highestBid * abandonmentFeePercent / 100;
+            balances[highestBidder] += highestBid - fee;
+        }
 
         emit Abandoned(auctionId, highestBidder, fee);
 
-        (bool success,) = payable(msg.sender).call{value: fee}("");
+        (bool success,) = payable(theFarmer).call{value: fee}("");
         if (!success) revert TransferFailed();
     }
 
     /**
-     * withdraw - Withdraws the highest bid from claimed auctions
-     *
-     * @param auctionIds - The ids of the auctions to withdraw from
-     *
-     * @notice - Auctions can only be withdrawn after the settlement period has ended.
-     *
-     */
-
-    function withdraw(uint256[] calldata auctionIds) external onlyOwner {
-        uint256 totalAmount;
-
-        for (uint256 i; i < auctionIds.length; ++i) {
-            Auction storage auction = auctions[auctionIds[i]];
-
-            if (auction.status != Status.Claimed) revert InvalidStatus();
-
-            totalAmount += auction.highestBid;
-            auction.status = Status.Withdrawn;
-        }
-
-        (bool success,) = payable(msg.sender).call{value: totalAmount}("");
-        if (!success) revert TransferFailed();
-    }
-
-    /**
-     * withdrawBalance - Withdraws the balance of the user.
+     * withdraw - Withdraws the balance of the user.
      *
      * @notice - We keep track of the balance instead of sending it directly
      *           back to the user when outbid to avoid re-entrancy attacks.
      *
      */
-    function withdrawBalance() external {
+    function withdraw() external {
         uint256 balance = balances[msg.sender];
 
         if (balance == 0) revert NoBalanceToWithdraw();
 
         balances[msg.sender] = 0;
 
-        emit WithdrawBalance(msg.sender, balance);
+        emit Withdraw(msg.sender, balance);
 
         (bool success,) = payable(msg.sender).call{value: balance}("");
         if (!success) revert TransferFailed();
@@ -449,6 +436,10 @@ contract Auctions is Ownable {
 
     function setBarnAddress(address theBarn_) external onlyOwner {
         theBarn = theBarn_;
+    }
+
+    function setFarmerAddress(address theFarmer_) external onlyOwner {
+        theFarmer = theFarmer_;
     }
 
     function setBidTicketAddress(address bidTicket_) external onlyOwner {
@@ -692,7 +683,9 @@ contract Auctions is Ownable {
         if (notRefundable) revert AuctionIsApproved();
     }
 
-    function _distributeRewards(Auction storage auction) internal {
+    function _distributeRewards(Auction storage auction) internal returns (uint256) {
+        uint256 totalRewards;
+
         for (uint256 i; i < auction.bidderCount; ++i) {
             address bidder = auction.bidders[i];
             uint256 reward = auction.rewards[bidder];
@@ -700,10 +693,11 @@ contract Auctions is Ownable {
             if (reward > 0) {
                 unchecked {
                     balances[bidder] += reward;
+                    totalRewards += reward;
                 }
             }
         }
+
+        return totalRewards;
     }
 }
-
-
