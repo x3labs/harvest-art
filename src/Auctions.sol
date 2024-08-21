@@ -17,6 +17,7 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "solady/src/auth/Ownable.sol";
 import "./IBidTicket.sol";
 
+//@audit No inactive default status
 enum Status {
     Active,
     Claimed,
@@ -123,6 +124,7 @@ contract Auctions is Ownable {
         address tokenAddress,
         uint256[] calldata tokenIds
     ) external payable {
+        //@audit minStartingBid per token is it?
         if (startingBid < minStartingBid) revert StartPriceTooLow();
         if (tokenIds.length == 0) revert InvalidLengthOfTokenIds();
         if (tokenIds.length > maxTokens) revert MaxTokensPerTxReached();
@@ -136,10 +138,12 @@ contract Auctions is Ownable {
         auction.endTime = uint64(block.timestamp + auctionDuration);
         auction.highestBidder = msg.sender;
         auction.highestBid = startingBid;
+        //@audit-issue tokenCount can be max 256 but the check is not present in the maxTokens check
         auction.tokenCount = uint8(tokenIds.length);
         auction.bidderCount = 1;
         auction.bidDelta = startingBid;
 
+        //@audit auction.tokenIds is not set in the previous state and this tokenMap makes no sense here
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
 
         for (uint256 i; i < tokenIds.length; ++i) {
@@ -152,6 +156,7 @@ contract Auctions is Ownable {
 
         emit Started(msg.sender, tokenAddress, tokenIds);
         
+        //@audit It should be bidTicketCostStart * tokenIds.length()
         bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostStart);
 
         _validateAuctionTokensERC721(tokenAddress, tokenIds);
@@ -180,12 +185,14 @@ contract Auctions is Ownable {
         _processPayment(startingBid);
 
         Auction storage auction = auctions[nextAuctionId];
-
+        
+        //@audit Doesn't check if the auction is already present or not
         auction.auctionType = AUCTION_TYPE_ERC1155;
         auction.tokenAddress = tokenAddress;
         auction.endTime = uint64(block.timestamp + auctionDuration);
         auction.highestBidder = msg.sender;
         auction.highestBid = startingBid;
+        //@audit token count for ERC1155 is incorrect
         auction.tokenCount = uint8(tokenIds.length);
         auction.bidderCount = 1;
         auction.bidDelta = startingBid;
@@ -220,10 +227,12 @@ contract Auctions is Ownable {
         Auction storage auction = auctions[auctionId];
 
         if (auction.status != Status.Active) revert InvalidStatus();
+        //@audit A user can call wit 2 addresses
         if (auction.highestBidder == msg.sender) revert IsHighestBidder();
         if (bidAmount < auction.highestBid + minBidIncrement) revert BidTooLow();
         if (block.timestamp > auction.endTime) revert AuctionEnded();
 
+        //@audit A malicious user will not the auction end because of this
         if (block.timestamp >= auction.endTime - antiSnipeDuration) {
             auction.endTime += uint64(antiSnipeDuration);
         }
@@ -238,6 +247,7 @@ contract Auctions is Ownable {
             balances[prevHighestBidder] += prevHighestBid;
 
             // Add new bidder to the bidders list
+            //@audit What is this rewards check?
             if (auction.rewards[prevHighestBidder] == 0) {
                 auction.bidders[auction.bidderCount - 1] = prevHighestBidder;
                 ++auction.bidderCount;
@@ -256,6 +266,7 @@ contract Auctions is Ownable {
 
         emit NewBid(auctionId, msg.sender, bidAmount);
 
+        //@audit Why burn just 1 token?
         bidTicket.burn(msg.sender, bidTicketTokenId, bidTicketCostBid);
     }
 
@@ -511,6 +522,7 @@ contract Auctions is Ownable {
             paymentFromMsgValue = payment - balance;
         }
 
+        //@audit Can this be dossed
         if (msg.value != paymentFromMsgValue) revert InvalidValue();
 
         if (paymentFromBalance > 0) {
@@ -578,6 +590,7 @@ contract Auctions is Ownable {
         for (uint256 i; i < tokenCount; ++i) {
             uint256 tokenId = tokenMap[i];
             auctionTokens[tokenId] = false;
+            //@audit Use safeTransfer here
             erc721Contract.transferFrom(theBarn, highestBidder, tokenId);
         }
     }

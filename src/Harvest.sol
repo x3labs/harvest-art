@@ -41,6 +41,7 @@ contract Harvest is Ownable {
         bidTicket = IBidTicket(bidTicket_);
     }
 
+    //@audit No check of the contract addresses
     function batchTransfer(
         TokenType[] calldata types,
         address[] calldata contracts,
@@ -63,6 +64,7 @@ contract Harvest is Ownable {
 
         for (uint256 i; i < length; ++i) {
             TokenType tokenType = types[i];
+            //@audit This doesn't look good
             address tokenContract = contracts[i] == address(0) ? currentContract : contracts[i];
             currentContract = tokenContract;
 
@@ -78,8 +80,10 @@ contract Harvest is Ownable {
                     ++totalTokens;
                     totalPrice += price;
                 }
+                //@audit Doesn't check if the barn contract can accept the tokens or not
                 IERC721(tokenContract).transferFrom(msg.sender, theBarn, tokenIds[i]);
             } else if (tokenType == TokenType.ERC1155) {
+                //@audit Will it revert for 0?
                 uint256 count = counts[i];
                 unchecked {
                     totalTokens += count;
