@@ -266,13 +266,14 @@ contract Auctions is Ownable {
      *
      */
 
-    function claim(uint256 auctionId) external {
+    function claim(uint256 auctionId) external nonReentrant {
         Auction storage auction = auctions[auctionId];
 
         if (auction.status != Status.Active) revert InvalidStatus();
         if (block.timestamp < auction.endTime) revert AuctionNotEnded();
         if (msg.sender != auction.highestBidder && msg.sender != owner()) revert NotHighestBidder();
 
+        // Mark auction as claimed
         auction.status = Status.Claimed;
 
         uint256 totalRewards = _distributeRewards(auction);
@@ -281,7 +282,7 @@ contract Auctions is Ownable {
 
         (bool success,) = payable(theFarmer).call{value: auction.highestBid - totalRewards}("");
         if (!success) revert TransferFailed();
-        
+
         if (auction.auctionType == AUCTION_TYPE_ERC721) {
             _transferERC721s(auction);
         } else {
