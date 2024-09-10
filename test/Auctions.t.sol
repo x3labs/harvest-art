@@ -303,7 +303,9 @@ contract AuctionsTest is Test {
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
         vm.stopPrank();
 
-        skip(60 * 60 * 24 * 7 + 1);
+        (,, uint64 endTime,,,,,,) = auctions.auctions(1);
+
+        vm.warp(endTime + 1);
 
         vm.startPrank(user2);
         vm.expectRevert(bytes4(keccak256("AuctionEnded()")));
@@ -346,13 +348,13 @@ contract AuctionsTest is Test {
         vm.startPrank(user2);
         auctions.bid{value: 0.06 ether}(auctionId, 0.06 ether);
 
-        (,,,,, address highestBidder, uint256 highestBid,,) = auctions.auctions(auctionId);
+        (,, uint64 endTime,,, address highestBidder, uint256 highestBid,,) = auctions.auctions(auctionId);
 
         assertEq(user2.balance, 0.94 ether, "user2 should have 0.95 ether in wallet");
         assertEq(highestBidder, user2, "Highest bidder should be user1");
         assertEq(highestBid, 0.06 ether, "Highest bid should be 0.06 ether");
 
-        skip(60 * 60 * 24 * 7 + 1);
+        vm.warp(endTime + 1);
         auctions.claim(auctionId);
 
         assertEq(mock721.ownerOf(tokenIds[0]), user2, "Should own token 0");
@@ -510,6 +512,19 @@ contract AuctionsTest is Test {
         vm.startPrank(user1);
 
         auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
+        vm.expectRevert(bytes4(keccak256("AuctionNotEnded()")));
+        auctions.claim(1);
+    }
+
+    function test_claim_RevertIf_AtTheBuzzer() public {
+        vm.startPrank(user1);
+
+        auctions.startAuctionERC721{value: 0.05 ether}(0.05 ether, address(mock721), tokenIds);
+
+        (,, uint64 endTime,,,,,,) = auctions.auctions(1);
+
+        vm.warp(endTime);
+
         vm.expectRevert(bytes4(keccak256("AuctionNotEnded()")));
         auctions.claim(1);
     }

@@ -113,6 +113,7 @@ contract Auctions is Ownable {
      *
      * startAuction - Starts an auction for a given token
      *
+     * @param startingBid - The starting bid for the auction
      * @param tokenAddress - The address of the token contract
      * @param tokenIds - The token ids to auction
      *
@@ -161,6 +162,7 @@ contract Auctions is Ownable {
      *
      * startAuction - Starts an auction for a given token
      *
+     * @param startingBid - The starting bid for the auction
      * @param tokenAddress - The address of the token contract
      * @param tokenIds - The token ids to auction
      * @param amounts - The amounts of each token to auction
@@ -213,6 +215,7 @@ contract Auctions is Ownable {
      * bid - Places a bid on an auction
      *
      * @param auctionId - The id of the auction to bid on
+     * @param bidAmount - The amount of the bid
      *
      */
 
@@ -224,7 +227,7 @@ contract Auctions is Ownable {
         if (bidAmount < auction.highestBid + minBidIncrement) revert BidTooLow();
         if (block.timestamp > auction.endTime) revert AuctionEnded();
 
-        if (block.timestamp >= auction.endTime - antiSnipeDuration) {
+        if (block.timestamp > auction.endTime - antiSnipeDuration) {
             auction.endTime += uint64(antiSnipeDuration);
         }
 
@@ -270,7 +273,7 @@ contract Auctions is Ownable {
         Auction storage auction = auctions[auctionId];
 
         if (auction.status != Status.Active) revert InvalidStatus();
-        if (block.timestamp < auction.endTime) revert AuctionNotEnded();
+        if (block.timestamp <= auction.endTime) revert AuctionNotEnded();
         if (msg.sender != auction.highestBidder && msg.sender != owner()) revert NotHighestBidder();
 
         auction.status = Status.Claimed;
@@ -302,7 +305,7 @@ contract Auctions is Ownable {
         uint256 endTime = auction.endTime;
 
         if (auction.status != Status.Active) revert InvalidStatus();
-        if (block.timestamp < endTime) revert AuctionActive();
+        if (block.timestamp <= endTime) revert AuctionActive();
         if (block.timestamp > endTime + settlementDuration) revert SettlementPeriodEnded();
         if (msg.sender != auction.highestBidder && msg.sender != owner()) revert NotHighestBidder();
 
@@ -334,7 +337,7 @@ contract Auctions is Ownable {
         uint256 highestBid = auction.highestBid;
 
         if (auction.status != Status.Active) revert InvalidStatus();
-        if (block.timestamp < auction.endTime + settlementDuration) revert SettlementPeriodNotExpired();
+        if (block.timestamp <= auction.endTime + settlementDuration) revert SettlementPeriodNotExpired();
 
         auction.status = Status.Abandoned;
 
@@ -361,7 +364,7 @@ contract Auctions is Ownable {
      * withdraw - Withdraws the balance of the user.
      *
      * @notice - We keep track of the balance instead of sending it directly
-     *           back to the user when outbid to avoid re-entrancy attacks.
+     *           back to the user when outbid to avoid certain types of attacks.
      *
      */
     function withdraw() external {
@@ -576,9 +579,11 @@ contract Auctions is Ownable {
         mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
 
         for (uint256 i; i < tokenCount; ++i) {
-            uint256 tokenId = tokenMap[i];
-            auctionTokens[tokenId] = false;
-            erc721Contract.transferFrom(theBarn, highestBidder, tokenId);
+            auctionTokens[tokenMap[i]] = false;
+        }
+
+        for (uint256 i; i < tokenCount; ++i) {
+            erc721Contract.safeTransferFrom(theBarn, highestBidder, tokenMap[i]);
         }
     }
 
