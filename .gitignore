@@ -15,7 +15,6 @@ docs/
 !.env.example
 
 # Libraries
-lib/
 !test/lib
 
 # Coverage
