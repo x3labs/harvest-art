@@ -78,7 +78,7 @@ contract BidTicketTest is Test {
     function test_mint_RevertIf_AnyoneElse() public {
         vm.prank(user1);
         try bidTicket.mint(user1, 1, 100) {
-            fail("Should revert if anyone else tries to mint");
+            fail();
         } catch {}
     }
 
@@ -96,7 +96,7 @@ contract BidTicketTest is Test {
     function test_mintBatch_RevertIf_AnyoneElse() public {
         vm.prank(user1);
         try bidTicket.mintBatch(user1, ids, amounts) {
-            fail("Should revert if anyone else tries to mint");
+            fail();
         } catch {}
     }
 
@@ -116,7 +116,7 @@ contract BidTicketTest is Test {
         bidTicket.mint(user1, 1, 100);
         vm.startPrank(user1);
         try bidTicket.burn(user1, 1, 50) {
-            fail("Should revert if anyone else tries to burn");
+            fail();
         } catch {}
     }
 
@@ -136,7 +136,7 @@ contract BidTicketTest is Test {
         bidTicket.mintBatch(user1, ids, amounts);
         vm.startPrank(user1);
         try bidTicket.burnBatch(user1, ids, amounts) {
-            fail("Should revert if anyone else tries to burn");
+            fail();
         } catch {}
     }
 
@@ -149,7 +149,7 @@ contract BidTicketTest is Test {
     function test_setURI_RevertIf_NotOwner() public {
         vm.startPrank(user1);
         try bidTicket.setURI(1, "https://newuri.example.com/api/token/{id}.json") {
-            fail("Should revert if anyone else tries to setURI");
+            fail();
         } catch {}
     }
 

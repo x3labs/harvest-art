@@ -15,6 +15,7 @@ pragma solidity ^0.8.25;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "solady/src/auth/Ownable.sol";
+import "solady/src/utils/ReentrancyGuard.sol";
 import "./IBidTicket.sol";
 
 enum Status {
@@ -40,7 +41,7 @@ struct Auction {
     mapping(address => uint256) rewards;
 }
 
-contract Auctions is Ownable {
+contract Auctions is Ownable, ReentrancyGuard {
     uint8 private constant AUCTION_TYPE_ERC721 = 0;
     uint8 private constant AUCTION_TYPE_ERC1155 = 1;
 
@@ -123,7 +124,7 @@ contract Auctions is Ownable {
         uint256 startingBid,
         address tokenAddress,
         uint256[] calldata tokenIds
-    ) external payable {
+    ) external payable nonReentrant {
         if (startingBid < minStartingBid) revert StartPriceTooLow();
         if (tokenIds.length == 0) revert InvalidLengthOfTokenIds();
         if (tokenIds.length > maxTokens) revert MaxTokensPerTxReached();
@@ -174,7 +175,7 @@ contract Auctions is Ownable {
         address tokenAddress,
         uint256[] calldata tokenIds,
         uint256[] calldata amounts
-    ) external payable {
+    ) external payable nonReentrant {
         if (startingBid < minStartingBid) revert StartPriceTooLow();
         if (tokenIds.length == 0) revert InvalidLengthOfTokenIds();
         if (tokenIds.length != amounts.length) revert InvalidLengthOfAmounts();
@@ -219,7 +220,7 @@ contract Auctions is Ownable {
      *
      */
 
-    function bid(uint256 auctionId, uint256 bidAmount) external payable {
+    function bid(uint256 auctionId, uint256 bidAmount) external payable nonReentrant {
         Auction storage auction = auctions[auctionId];
 
         if (auction.status != Status.Active) revert InvalidStatus();
@@ -269,7 +270,7 @@ contract Auctions is Ownable {
      *
      */
 
-    function claim(uint256 auctionId) external {
+    function claim(uint256 auctionId) external nonReentrant {
         Auction storage auction = auctions[auctionId];
 
         if (auction.status != Status.Active) revert InvalidStatus();
@@ -299,7 +300,7 @@ contract Auctions is Ownable {
      *
      */
 
-    function refund(uint256 auctionId) external {
+    function refund(uint256 auctionId) external nonReentrant {
         Auction storage auction = auctions[auctionId];
         uint256 highestBid = auction.highestBid;
         uint256 endTime = auction.endTime;
@@ -331,7 +332,7 @@ contract Auctions is Ownable {
      * @param auctionId - The id of the auction to abandon
      *
      */
-    function abandon(uint256 auctionId) external onlyOwner {
+    function abandon(uint256 auctionId) external onlyOwner nonReentrant {
         Auction storage auction = auctions[auctionId];
         address highestBidder = auction.highestBidder;
         uint256 highestBid = auction.highestBid;
@@ -367,7 +368,7 @@ contract Auctions is Ownable {
      *           back to the user when outbid to avoid certain types of attacks.
      *
      */
-    function withdraw() external {
+    function withdraw() external nonReentrant {
         uint256 balance = balances[msg.sender];
 
         if (balance == 0) revert NoBalanceToWithdraw();

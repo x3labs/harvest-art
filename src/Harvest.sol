@@ -16,11 +16,12 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "solady/src/auth/Ownable.sol";
+import "solady/src/utils/ReentrancyGuard.sol";
 import "./IBidTicket.sol";
 
 enum TokenType { ERC20, ERC721, ERC1155 }
 
-contract Harvest is Ownable {
+contract Harvest is Ownable, ReentrancyGuard {
     IBidTicket public bidTicket;
     address public theBarn;
     uint256 public price = 1 gwei;
@@ -46,7 +47,7 @@ contract Harvest is Ownable {
         address[] calldata contracts,
         uint256[] calldata tokenIds,
         uint256[] calldata counts
-    ) external {
+    ) external nonReentrant {
         uint256 length = contracts.length;
 
         if (length == 0) {
