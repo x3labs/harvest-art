@@ -3,4 +3,4 @@ erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/
 forge-std/=lib/forge-std/src/
 @openzeppelin/=lib/openzeppelin-contracts/
 ERC1155P/=lib/ERC1155P/
-solady/=lib/solady/
+solady/=lib/solady/src/

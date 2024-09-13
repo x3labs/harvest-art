@@ -10,12 +10,12 @@ pragma solidity ^0.8.27;
 //   |---|---|---|---|---|    |--|--|    |  |
 //   |---|---|---|---|---|    |==|==|    |  |
 //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  _______  Harvest.art v3.1 (Auctions) _________
+//  _______  Harvest.art v4 (Auctions) _________
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import "solady/src/auth/Ownable.sol";
-import "solady/src/utils/ReentrancyGuard.sol";
+import "solady/auth/Ownable.sol";
+import "solady/utils/ReentrancyGuard.sol";
 import "./IAuctions.sol";
 import "./IBidTicket.sol";
 

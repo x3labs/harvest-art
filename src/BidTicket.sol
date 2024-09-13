@@ -13,7 +13,7 @@ pragma solidity ^0.8.27;
 //  ______  Harvest.art v3 (BidTicket) _______
 
 import "ERC1155P/contracts/ERC1155P.sol";
-import "solady/src/auth/Ownable.sol";
+import "solady/auth/Ownable.sol";
 import "./IBidTicket.sol";
 
 contract BidTicket is ERC1155P, Ownable, IBidTicket {

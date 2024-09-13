@@ -10,11 +10,11 @@ pragma solidity ^0.8.27;
 //   |---|---|---|---|---|    |--|--|    |  |
 //   |---|---|---|---|---|    |==|==|    |  |
 //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//  ____________  Harvest.art v3.1 _____________
+//  ____________  Harvest.art v4 _____________
 
 import "./IHarvest.sol";
-import "solady/src/auth/Ownable.sol";
-import "solady/src/utils/ReentrancyGuard.sol";
+import "solady/auth/Ownable.sol";
+import "solady/utils/ReentrancyGuard.sol";
 
 contract Harvest is IHarvest, Ownable, ReentrancyGuard {
     struct BatchItem {

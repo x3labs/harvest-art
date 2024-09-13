@@ -20,8 +20,6 @@ contract HarvestTest is Test {
     address public user1;
     address public user2;
 
-    // enum TokenType { ERC20, ERC721, ERC1155 }
-
     receive() external payable {}
     fallback() external payable {}
 
