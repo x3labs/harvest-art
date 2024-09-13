@@ -301,6 +301,7 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
      * @param auctionId - The id of the auction to abandon
      *
      */
+
     function abandon(uint256 auctionId) external onlyOwner nonReentrant {
         Auction storage auction = auctions[auctionId];
         address highestBidder = auction.highestBidder;
@@ -337,6 +338,7 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
      *           back to the user when outbid to avoid certain types of attacks.
      *
      */
+
     function withdraw() external nonReentrant {
         uint256 balance = balances[msg.sender];
         require(balance > 0, NoBalanceToWithdraw());

@@ -84,7 +84,7 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
             } else if (batchItems[i].tokenType == TokenType.ERC1155) {
                 IERC1155(batchItems[i].contractAddress).safeTransferFrom(msg.sender, theBarn, batchItems[i].tokenId, batchItems[i].count, "");
             } else {
-                require(false, InvalidTokenType());
+                revert InvalidTokenType();
             }
         }
 
@@ -92,28 +92,28 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
         require(success, TransferFailed());
     }
 
-    function setBarn(address _theBarn) public onlyOwner {
-        theBarn = _theBarn;
+    function setBarn(address theBarn_) public onlyOwner {
+        theBarn = theBarn_;
     }
 
-    function setBidTicketAddress(address _bidTicket) external onlyOwner {
-        bidTicket = IBidTicket(_bidTicket);
+    function setBidTicketAddress(address bidTicket_) external onlyOwner {
+        bidTicket = IBidTicket(bidTicket_);
     }
 
-    function setBidTicketMultiplier(uint256 _bidTicketMultiplier) external onlyOwner {
-        bidTicketMultiplier = _bidTicketMultiplier;
+    function setBidTicketMultiplier(uint256 bidTicketMultiplier_) external onlyOwner {
+        bidTicketMultiplier = bidTicketMultiplier_;
     }
 
-    function setBidTicketTokenId(uint256 _bidTicketTokenId) external onlyOwner {
-        bidTicketTokenId = _bidTicketTokenId;
+    function setBidTicketTokenId(uint256 bidTicketTokenId_) external onlyOwner {
+        bidTicketTokenId = bidTicketTokenId_;
     }
 
-    function setMaxTokensPerTx(uint256 _maxTokensPerTx) public onlyOwner {
-        maxTokensPerTx = _maxTokensPerTx;
+    function setMaxTokensPerTx(uint256 maxTokensPerTx_) public onlyOwner {
+        maxTokensPerTx = maxTokensPerTx_;
     }
 
-    function setSalePrice(uint256 _salePrice) public onlyOwner {
-        salePrice = _salePrice;
+    function setSalePrice(uint256 salePrice_) public onlyOwner {
+        salePrice = salePrice_;
     }
 
     function withdrawBalance() external onlyOwner {
