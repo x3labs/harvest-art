@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.27;
 
 //                            _.-^-._    .--.
 //                         .-'   _   '-. |__|
@@ -16,6 +16,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "solady/src/auth/Ownable.sol";
 import "solady/src/utils/ReentrancyGuard.sol";
+import "./IAuctions.sol";
 import "./IBidTicket.sol";
 
 enum Status {
@@ -41,62 +42,30 @@ struct Auction {
     mapping(address => uint256) rewards;
 }
 
-contract Auctions is Ownable, ReentrancyGuard {
+contract Auctions is IAuctions, Ownable, ReentrancyGuard {
     uint8 private constant AUCTION_TYPE_ERC721 = 0;
     uint8 private constant AUCTION_TYPE_ERC1155 = 1;
 
     IBidTicket public bidTicket;
-
     address public theBarn;
     address public theFarmer;
-
-    uint256 public bidTicketTokenId = 1;
-    uint256 public bidTicketCostStart = 1;
-    uint256 public bidTicketCostBid = 1;
-    uint256 public maxTokens = 50;
-    uint256 public nextAuctionId = 1;
-    uint256 public minStartingBid = 0.05 ether;
-    uint256 public minBidIncrement = 0.01 ether;
-    uint256 public auctionDuration = 3 days;
-    uint256 public settlementDuration = 7 days;
-    uint256 public antiSnipeDuration = 1 hours;
     uint256 public abandonmentFeePercent = 20;
+    uint256 public antiSnipeDuration = 1 hours;
+    uint256 public auctionDuration = 3 days;
+    uint256 public bidTicketCostBid = 1;
+    uint256 public bidTicketCostStart = 1;
+    uint256 public bidTicketTokenId = 1;
+    uint256 public maxTokens = 50;
+    uint256 public minBidIncrement = 0.01 ether;
+    uint256 public minStartingBid = 0.05 ether;
+    uint256 public nextAuctionId = 1;
     uint256 public outbidRewardPercent = 10;
+    uint256 public settlementDuration = 7 days;
 
     mapping(address => uint256) public balances;
     mapping(uint256 => Auction) public auctions;
     mapping(address => mapping(uint256 => bool)) public auctionTokensERC721;
     mapping(address => mapping(uint256 => uint256)) public auctionTokensERC1155;
-    
-    error AuctionActive();
-    error AuctionEnded();
-    error AuctionIsApproved();
-    error AuctionNotEnded();
-    error BidTooLow();
-    error InvalidFeePercentage();
-    error InvalidLengthOfAmounts();
-    error InvalidLengthOfTokenIds();
-    error InvalidStatus();
-    error InvalidValue();
-    error IsHighestBidder();
-    error MaxTokensPerTxReached();
-    error NoBalanceToWithdraw();
-    error NoRewardsToClaim();
-    error NotEnoughTokensInSupply();
-    error NotHighestBidder();
-    error SettlementPeriodNotExpired();
-    error SettlementPeriodEnded();
-    error StartPriceTooLow();
-    error TokenAlreadyInAuction();
-    error TokenNotOwned();
-    error TransferFailed();
-
-    event Abandoned(uint256 indexed auctionId, address indexed bidder, uint256 indexed fee);
-    event Claimed(uint256 indexed auctionId, address indexed winner);
-    event NewBid(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
-    event Refunded(uint256 indexed auctionId, address indexed bidder, uint256 indexed value);
-    event Started(address indexed bidder, address indexed tokenAddress, uint256[] indexed tokenIds);
-    event Withdraw(address indexed user, uint256 indexed value);
 
     constructor(
         address owner_,

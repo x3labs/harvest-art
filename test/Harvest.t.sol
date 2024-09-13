@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.27;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -286,8 +286,8 @@ contract HarvestTest is Test {
         harvest.withdrawBalance();
     }
 
-    function test_setPrice_Success() public {
-        harvest.setPrice(100 gwei);
+    function test_setSalePrice_Success() public {
+        harvest.setSalePrice(100 gwei);
     }
 
     function test_setBidTicketAddress_Success() public {
