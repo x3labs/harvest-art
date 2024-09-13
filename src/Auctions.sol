@@ -94,9 +94,9 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         address tokenAddress,
         uint256[] calldata tokenIds
     ) external payable nonReentrant {
-        if (startingBid < minStartingBid) revert StartPriceTooLow();
-        if (tokenIds.length == 0) revert InvalidLengthOfTokenIds();
-        if (tokenIds.length > maxTokens) revert MaxTokensPerTxReached();
+        require(startingBid >= minStartingBid, StartPriceTooLow());
+        require(tokenIds.length > 0, InvalidLengthOfTokenIds());
+        require(tokenIds.length <= maxTokens, MaxTokensPerTxReached());
 
         _processPayment(startingBid);
 
@@ -306,8 +306,8 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         address highestBidder = auction.highestBidder;
         uint256 highestBid = auction.highestBid;
 
-        if (auction.status != Status.Active) revert InvalidStatus();
-        if (block.timestamp <= auction.endTime + settlementDuration) revert SettlementPeriodNotExpired();
+        require(auction.status == Status.Active, InvalidStatus());
+        require(block.timestamp > auction.endTime + settlementDuration, SettlementPeriodNotExpired());
 
         auction.status = Status.Abandoned;
 
@@ -327,7 +327,7 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         emit Abandoned(auctionId, highestBidder, fee);
 
         (bool success,) = payable(theFarmer).call{value: fee}("");
-        if (!success) revert TransferFailed();
+        require(success, TransferFailed());
     }
 
     /**
@@ -339,15 +339,14 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
      */
     function withdraw() external nonReentrant {
         uint256 balance = balances[msg.sender];
-
-        if (balance == 0) revert NoBalanceToWithdraw();
+        require(balance > 0, NoBalanceToWithdraw());
 
         balances[msg.sender] = 0;
 
         emit Withdraw(msg.sender, balance);
 
         (bool success,) = payable(msg.sender).call{value: balance}("");
-        if (!success) revert TransferFailed();
+        require(success, TransferFailed());
     }
 
     /**
@@ -456,12 +455,12 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
     }
 
     function setAbandonmentFeePercent(uint256 newFeePercent) external onlyOwner {
-        if (newFeePercent > 100) revert InvalidFeePercentage();
+        require(newFeePercent <= 100, InvalidFeePercentage());
         abandonmentFeePercent = newFeePercent;
     }
 
     function setOutbidRewardPercent(uint256 newPercent) external onlyOwner {
-        if (newPercent > 100) revert InvalidFeePercentage();
+        require(newPercent <= 100, InvalidFeePercentage());
         outbidRewardPercent = newPercent;
     }
 
@@ -484,7 +483,7 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
             paymentFromMsgValue = payment - balance;
         }
 
-        if (msg.value != paymentFromMsgValue) revert InvalidValue();
+        require(msg.value == paymentFromMsgValue, InvalidValue());
 
         if (paymentFromBalance > 0) {
             balances[msg.sender] -= paymentFromBalance;
@@ -499,11 +498,11 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         for (uint256 i; i < tokenIds.length; ++i) {
             uint256 tokenId = tokenIds[i];
 
-            if (auctionTokens[tokenId]) revert TokenAlreadyInAuction();
+            require(!auctionTokens[tokenId], TokenAlreadyInAuction());
 
             auctionTokens[tokenId] = true;
 
-            if (erc721Contract.ownerOf(tokenId) != theBarn) revert TokenNotOwned();
+            require(erc721Contract.ownerOf(tokenId) == theBarn, TokenNotOwned());
         }
     }
 
@@ -529,14 +528,14 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
             totalNeeded = auctionTokens[tokenId] + amount;
             balance = erc1155Contract.balanceOf(theBarn, tokenId);
 
-            if (totalNeeded > balance) revert NotEnoughTokensInSupply();
+            require(totalNeeded <= balance, NotEnoughTokensInSupply());
 
             unchecked {
                 auctionTokens[tokenId] += amount;
             }
         }
 
-        if (totalTokens > maxTokens) revert MaxTokensPerTxReached();
+        require(totalTokens <= maxTokens, MaxTokensPerTxReached());
     }
 
     function _transferERC721s(Auction storage auction) internal {
@@ -629,7 +628,7 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
             notRefundable = notRefundable && (IERC721(tokenAddress).ownerOf(tokenId) == theBarn);
         }
 
-        if (notRefundable) revert AuctionIsApproved();
+        require(!notRefundable, AuctionIsApproved());
     }
 
     function _checkAndResetERC1155s(Auction storage auction) internal {
@@ -655,7 +654,7 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
             notRefundable = notRefundable && (IERC1155(tokenAddress).balanceOf(theBarn, tokenId) >= amount);
         }
 
-        if (notRefundable) revert AuctionIsApproved();
+        require(!notRefundable, AuctionIsApproved());
     }
 
     function _distributeRewards(Auction storage auction) internal returns (uint256) {

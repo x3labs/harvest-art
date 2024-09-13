@@ -108,14 +108,8 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
             }
         }
 
-        uint256 totalSalePrice;
-
-        unchecked {
-            totalSalePrice = salePrice * totalTokens;
-        }
-
-        (bool sent,) = payable(msg.sender).call{value: totalSalePrice}("");
-        if (!sent) revert TransferFailed();
+        (bool success,) = payable(msg.sender).call{value: salePrice * totalTokens}("");
+        require(success, TransferFailed());
     }
 
     function setBarn(address _theBarn) public onlyOwner {
