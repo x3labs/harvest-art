@@ -3,8 +3,8 @@ pragma solidity ^0.8.27;
 
 import "forge-std/console.sol";
 import "forge-std/Script.sol";
-import "../../src/BidTicket.sol";
-import "../Factory.s.sol";
+import "../src/BidTicket.sol";
+import "./Factory.s.sol";
 
 contract Deploy is Factory {
     function run() external returns (address){

@@ -13,18 +13,18 @@ contract Factory is Script {
     ImmutableCreate2Factory immutable factory = ImmutableCreate2Factory(0x0000000000FFe8B47B3e2130213B802212439497);
 
     function deploy(string memory friendlyName, bytes memory _initCode, bytes32 _salt, bytes memory _args) public returns (address) {
-        if (_initCode.length == 0) revert InvalidInitCode();
-        if (_salt == bytes32(0)) revert InvalidSalt();
+        require(_initCode.length > 0, InvalidInitCode());
+        require(_salt != bytes32(0), InvalidSalt());
 
         bytes memory initCodeWithArgs = abi.encodePacked(_initCode, _args);
+
+        console2.log("--- init code hash for create2crunch ---");
+        console2.logBytes32(keccak256(initCodeWithArgs));        
 
         vm.broadcast();
         address contractAddress = factory.safeCreate2(_salt, initCodeWithArgs);
 
         console2.log(friendlyName, contractAddress);
-        console2.log("--- init code hash for create2crunch ---");
-        console2.logBytes32(keccak256(initCodeWithArgs));
-        
 
         return contractAddress;
     }

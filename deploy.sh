@@ -77,20 +77,20 @@ get_script() {
             fi
             ;;
         harvest)
-            echo -n "script/Harvest/Deploy.s.sol:Deploy"
+            echo -n "script/DeployHarvest.s.sol:Deploy"
             ;;
         auctions)
             if [ "$is_testnet" = true ]; then
-                echo -n "script/Auctions/DeployTestnet.s.sol:DeployTestnet"
+                echo -n "script/DeployAuctionsTestnet.s.sol:DeployTestnet"
             else
-                echo -n "script/Auctions/Deploy.s.sol:Deploy"
+                echo -n "script/DeployAuctions.s.sol:Deploy"
             fi
             ;;
         bidticket)
             if [ "$is_testnet" = true ]; then
-                echo -n "script/BidTicket/DeployTestnet.s.sol:DeployTestnet"
+                echo -n "script/DeployBidTicketTestnet.s.sol:DeployTestnet"
             else
-                echo -n "script/BidTicket/Deploy.s.sol:Deploy"
+                echo -n "script/DeployBidTicket.s.sol:Deploy"
             fi
             ;;
         *)

@@ -3,9 +3,9 @@ pragma solidity ^0.8.27;
 
 import "forge-std/console.sol";
 import "forge-std/Script.sol";
-import {Deploy as DeployBidTicket} from "./BidTicket/Deploy.s.sol";
-import {Deploy as DeployHarvest} from "./Harvest/Deploy.s.sol";
-import {Deploy as DeployAuctions} from "./Auctions/Deploy.s.sol";
+import {Deploy as DeployBidTicket} from "./DeployBidTicket.s.sol";
+import {Deploy as DeployHarvest} from "./DeployHarvest.s.sol";
+import {Deploy as DeployAuctions} from "./DeployAuctions.s.sol";
 
 contract DeployAll is Script {
     function run() external {
