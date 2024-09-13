@@ -218,16 +218,16 @@ contract HarvestTest is Test {
         tokenTypes[0] = TokenType.ERC20;
         tokenContracts[0] = address(mockERC20);
         tokenIds[0] = 0; // Not used for ERC20
-        counts[0] = 100;
+        counts[0] = 0; // Not used for ERC20
 
         harvest.setBarn(theBarn);
 
         vm.startPrank(user2);
-        mockERC20.approve(address(harvest), 100);
+        mockERC20.approve(address(harvest), type(uint256).max);
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
 
-        assertEq(mockERC20.balanceOf(theBarn), 100, "theBarn should have received 100 tokens");
-        assertEq(mockERC20.balanceOf(user2), 900, "user2 should have 900 tokens left");
+        assertEq(mockERC20.balanceOf(theBarn), 1000, "theBarn should have received 100 tokens");
+        assertEq(mockERC20.balanceOf(user2), 0, "user2 should have 900 tokens left");
     }
 
        function test_batchTransfer_RevertIf_EmptyTokenContracts() public {
@@ -271,6 +271,30 @@ contract HarvestTest is Test {
         mock721.setApprovalForAll(address(harvest), true);
 
         vm.expectRevert(bytes4(keccak256("MaxTokensPerTxReached()")));
+        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+    }
+
+    function test_batchTransfer_RevertIf_UserCheatingWithERC20() public {
+        uint256 totalAmount = 100;
+        uint256 splitCount = 5;
+        uint256 amountPerSplit = totalAmount / splitCount;
+
+        TokenType[] memory tokenTypes = new TokenType[](splitCount);
+        address[] memory tokenContracts = new address[](splitCount);
+        uint256[] memory tokenIds = new uint256[](splitCount);
+        uint256[] memory counts = new uint256[](splitCount);
+
+        for (uint256 i; i < splitCount; i++) {
+            tokenTypes[i] = TokenType.ERC20;
+            tokenContracts[i] = address(mockERC20);
+            tokenIds[i] = 0;
+            counts[i] = amountPerSplit;
+        }
+
+        vm.startPrank(user2);
+        mockERC20.approve(address(harvest), type(uint256).max);
+
+        vm.expectRevert(bytes4(keccak256("InsufficientBalance()")));
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
     }
 

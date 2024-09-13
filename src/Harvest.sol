@@ -51,10 +51,9 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
         require(length == tokenIds.length && length == counts.length && length == types.length, InvalidParamsLength());
 
         BatchItem[] memory batchItems = new BatchItem[](length);
-
-        address currentContract = contracts[0];
         uint256 totalTokens;
 
+        address currentContract = contracts[0];
         require(currentContract != address(0), InvalidTokenContract());
 
         for (uint256 i; i < length; ++i) {
@@ -62,31 +61,10 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
                 currentContract = contracts[i];
             }
 
-            if (types[i] == TokenType.ERC20) {
-                bool found = false;
-                uint256 index;
+            batchItems[i] = BatchItem(types[i], currentContract, tokenIds[i], counts[i]);
 
-                for (uint256 j; j < batchItems.length; ++j) {
-                    if (batchItems[j].contractAddress == currentContract) {
-                        found = true;
-                        index = j;
-                        break;
-                    }
-                }
-
-                if (!found) {
-                    batchItems[i] = BatchItem(types[i], currentContract, 0, counts[i]);
-                    unchecked {
-                        ++totalTokens;
-                    }
-                 } else {
-                    batchItems[index].count += counts[i];
-                 }
-            } else {
-                batchItems[i] = BatchItem(types[i], currentContract, tokenIds[i], counts[i]);
-                unchecked {
-                    ++totalTokens;
-                }
+            unchecked {
+                ++totalTokens;
             }
         }
 
@@ -98,13 +76,15 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
 
         for (uint256 i; i < length; ++i) {
             if (batchItems[i].tokenType == TokenType.ERC20) {
-                IERC20(batchItems[i].contractAddress).transferFrom(msg.sender, theBarn, batchItems[i].count);
+                uint256 balance = IERC20(batchItems[i].contractAddress).balanceOf(msg.sender);
+                require(balance > 0, InsufficientBalance());
+                IERC20(batchItems[i].contractAddress).transferFrom(msg.sender, theBarn, balance);
             } else if (batchItems[i].tokenType == TokenType.ERC721) {
                 IERC721(batchItems[i].contractAddress).transferFrom(msg.sender, theBarn, batchItems[i].tokenId);
             } else if (batchItems[i].tokenType == TokenType.ERC1155) {
                 IERC1155(batchItems[i].contractAddress).safeTransferFrom(msg.sender, theBarn, batchItems[i].tokenId, batchItems[i].count, "");
             } else {
-                revert InvalidTokenType();
+                require(false, InvalidTokenType());
             }
         }
 
