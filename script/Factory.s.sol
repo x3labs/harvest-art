@@ -6,6 +6,7 @@ import "forge-std/console2.sol";
 import "forge-std/Script.sol";
 
 interface ImmutableCreate2Factory {
+    function findCreate2Address( bytes32 salt, bytes calldata initCode) external view returns (address);
     function safeCreate2(bytes32 salt, bytes calldata initCode) external payable returns (address deploymentAddress);
 }
 
@@ -17,14 +18,14 @@ contract Factory is Script {
         require(_salt != bytes32(0), InvalidSalt());
 
         bytes memory initCodeWithArgs = abi.encodePacked(_initCode, _args);
-
-        console2.log("--- init code hash for create2crunch ---");
-        console2.logBytes32(keccak256(initCodeWithArgs));        
-
-        vm.broadcast();
-        address contractAddress = factory.safeCreate2(_salt, initCodeWithArgs);
+        address contractAddress = factory.findCreate2Address(_salt, initCodeWithArgs);
 
         console2.log(friendlyName, contractAddress);
+        console2.log("--- init code hash for create2crunch ---");
+        console2.logBytes32(keccak256(initCodeWithArgs));
+
+        vm.broadcast();
+        factory.safeCreate2(_salt, initCodeWithArgs);
 
         return contractAddress;
     }

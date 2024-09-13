@@ -40,6 +40,9 @@ get_rpc_url() {
         sepolia)
             echo -n "https://eth-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
+        base-sepolia)
+            echo -n "https://base-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY"
+            ;;
         goerli)
             echo -n "https://eth-goerli.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
@@ -57,6 +60,9 @@ get_rpc_url() {
             ;;
         arbitrum)
             echo -n "https://arb-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
+            ;;
+        base)
+            echo -n "https://base-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         *)
             echo -n ""
