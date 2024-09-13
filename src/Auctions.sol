@@ -145,10 +145,10 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         uint256[] calldata tokenIds,
         uint256[] calldata amounts
     ) external payable nonReentrant {
-        if (startingBid < minStartingBid) revert StartPriceTooLow();
-        if (tokenIds.length == 0) revert InvalidLengthOfTokenIds();
-        if (tokenIds.length != amounts.length) revert InvalidLengthOfAmounts();
-
+        require(startingBid >= minStartingBid, StartPriceTooLow());
+        require(tokenIds.length > 0, InvalidLengthOfTokenIds());
+        require(tokenIds.length == amounts.length, InvalidLengthOfAmounts());
+ 
         _processPayment(startingBid);
 
         Auction storage auction = auctions[nextAuctionId];
@@ -192,10 +192,10 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
     function bid(uint256 auctionId, uint256 bidAmount) external payable nonReentrant {
         Auction storage auction = auctions[auctionId];
 
-        if (auction.status != Status.Active) revert InvalidStatus();
-        if (auction.highestBidder == msg.sender) revert IsHighestBidder();
-        if (bidAmount < auction.highestBid + minBidIncrement) revert BidTooLow();
-        if (block.timestamp > auction.endTime) revert AuctionEnded();
+        require(auction.status == Status.Active, InvalidStatus());
+        require(auction.highestBidder != msg.sender, IsHighestBidder());
+        require(bidAmount >= auction.highestBid + minBidIncrement, BidTooLow());
+        require(block.timestamp <= auction.endTime, AuctionEnded());
 
         if (block.timestamp > auction.endTime - antiSnipeDuration) {
             auction.endTime += uint64(antiSnipeDuration);
@@ -242,9 +242,9 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
     function claim(uint256 auctionId) external nonReentrant {
         Auction storage auction = auctions[auctionId];
 
-        if (auction.status != Status.Active) revert InvalidStatus();
-        if (block.timestamp <= auction.endTime) revert AuctionNotEnded();
-        if (msg.sender != auction.highestBidder && msg.sender != owner()) revert NotHighestBidder();
+        require(auction.status == Status.Active, InvalidStatus());
+        require(block.timestamp > auction.endTime, AuctionNotEnded());
+        require(msg.sender == auction.highestBidder || msg.sender == owner(), NotHighestBidder());
 
         auction.status = Status.Claimed;
 
@@ -253,7 +253,7 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         emit Claimed(auctionId, auction.highestBidder);
 
         (bool success,) = payable(theFarmer).call{value: auction.highestBid - totalRewards}("");
-        if (!success) revert TransferFailed();
+        require(success, TransferFailed());
         
         if (auction.auctionType == AUCTION_TYPE_ERC721) {
             _transferERC721s(auction);
@@ -274,10 +274,10 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         uint256 highestBid = auction.highestBid;
         uint256 endTime = auction.endTime;
 
-        if (auction.status != Status.Active) revert InvalidStatus();
-        if (block.timestamp <= endTime) revert AuctionActive();
-        if (block.timestamp > endTime + settlementDuration) revert SettlementPeriodEnded();
-        if (msg.sender != auction.highestBidder && msg.sender != owner()) revert NotHighestBidder();
+        require(auction.status == Status.Active, InvalidStatus());
+        require(block.timestamp > endTime, AuctionActive());
+        require(block.timestamp <= endTime + settlementDuration, SettlementPeriodEnded());
+        require(msg.sender == auction.highestBidder || msg.sender == owner(), NotHighestBidder());
 
         auction.status = Status.Refunded;
 
