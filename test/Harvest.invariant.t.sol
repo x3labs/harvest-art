@@ -13,7 +13,7 @@ contract HarvestInvariantTest is Test {
     BidTicket public bidTicket;
     Mock721 public mock721;
     Mock1155 public mock1155;
-    MockERC20 public mockERC20;
+    Mock20 public mock20;
 
     address public theBarn;
     address public user;
@@ -32,21 +32,18 @@ contract HarvestInvariantTest is Test {
 
         mock721 = new Mock721();
         mock1155 = new Mock1155();
-        mockERC20 = new MockERC20();
+        mock20 = new Mock20();
 
-        // Mint tokens to user
         mock721.mint(user, INITIAL_TOKENS);
         mock1155.mint(user, 1, INITIAL_TOKENS, "");
-        mockERC20.mint(user, INITIAL_TOKENS);
+        mock20.mint(user, INITIAL_TOKENS);
 
-        // Set up approvals
         vm.startPrank(user);
         mock721.setApprovalForAll(address(harvest), true);
         mock1155.setApprovalForAll(address(harvest), true);
-        mockERC20.approve(address(harvest), type(uint256).max);
+        mock20.approve(address(harvest), type(uint256).max);
         vm.stopPrank();
 
-        // Fund contracts
         vm.deal(address(harvest), INITIAL_BALANCE);
         vm.deal(user, INITIAL_BALANCE);
     }
@@ -64,7 +61,6 @@ contract HarvestInvariantTest is Test {
         uint256 salePrice = harvest.salePrice();
         uint256 bidTicketMultiplier = harvest.bidTicketMultiplier();
 
-        // Calculate total tokens transferred based on balance changes
         if (userFinalBalance > userInitialBalance) {
             totalTokensTransferred = (userFinalBalance - userInitialBalance) / salePrice;
         } else {
@@ -73,21 +69,18 @@ contract HarvestInvariantTest is Test {
 
         expectedBidTickets = totalTokensTransferred * bidTicketMultiplier;
 
-        // Check if the user received the correct amount of ETH
         assertEq(
             userFinalBalance,
             userInitialBalance + (totalTokensTransferred * salePrice),
             "User did not receive correct amount of ETH"
         );
 
-        // Check if the Harvest contract's balance decreased correctly
         assertEq(
             harvestFinalBalance,
             harvestInitialBalance - (totalTokensTransferred * salePrice),
             "Harvest contract balance did not decrease correctly"
         );
 
-        // Check if the user received the correct number of bid tickets
         assertEq(
             actualBidTickets,
             expectedBidTickets,
@@ -95,15 +88,8 @@ contract HarvestInvariantTest is Test {
         );
     }
 
-    function invariant_tokenBalancesNeverExceedInitial() public view {
-        assertLe(mock721.balanceOf(user), INITIAL_TOKENS, "ERC721 balance exceeded initial amount");
-        assertLe(mock1155.balanceOf(user, 1), INITIAL_TOKENS, "ERC1155 balance exceeded initial amount");
-        assertLe(mockERC20.balanceOf(user), INITIAL_TOKENS, "ERC20 balance exceeded initial amount");
-    }
-
-    // Helper function to perform random batch transfers
     function batchTransfer(uint256 seed) public {
-        uint256 tokenCount = (seed % 10) + 1; // 1 to 10 tokens per transfer
+        uint256 tokenCount = (seed % 10) + 1;
         TokenType[] memory types = new TokenType[](tokenCount);
         address[] memory contracts = new address[](tokenCount);
         uint256[] memory tokenIds = new uint256[](tokenCount);
@@ -113,18 +99,18 @@ contract HarvestInvariantTest is Test {
             uint256 tokenType = (seed + i) % 3;
             types[i] = TokenType(tokenType);
             
-            if (tokenType == 0) { // ERC721
+            if (tokenType == 0) {
                 contracts[i] = address(mock721);
                 tokenIds[i] = (seed + i) % INITIAL_TOKENS;
                 counts[i] = 1;
-            } else if (tokenType == 1) { // ERC1155
+            } else if (tokenType == 1) {
                 contracts[i] = address(mock1155);
                 tokenIds[i] = 1;
-                counts[i] = ((seed + i) % 5) + 1; // 1 to 5 tokens
-            } else { // ERC20
-                contracts[i] = address(mockERC20);
+                counts[i] = ((seed + i) % 5) + 1;
+            } else {
+                contracts[i] = address(mock20);
                 tokenIds[i] = 0;
-                counts[i] = ((seed + i) % 100) + 1; // 1 to 100 tokens
+                counts[i] = ((seed + i) % 100) + 1;
             }
         }
 

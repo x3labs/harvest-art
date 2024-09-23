@@ -11,6 +11,7 @@ enum TokenType { ERC20, ERC721, ERC1155 }
 interface IHarvest {
     event BatchTransfer(address indexed user, uint256 indexed totalTokens);
 
+    error DuplicateToken();
     error InsufficientBalance();
     error InvalidParamsLength();
     error InvalidTokenContract();

@@ -40,6 +40,9 @@ get_rpc_url() {
         sepolia)
             echo -n "https://eth-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
+        holesky)
+            echo -n "https://eth-holesky.g.alchemy.com/v2/$ALCHEMY_API_KEY"
+            ;;
         base-sepolia)
             echo -n "https://base-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
@@ -99,6 +102,9 @@ get_script() {
                 echo -n "script/DeployBidTicket.s.sol:Deploy"
             fi
             ;;
+        mocks)
+            echo -n "script/DeployMockTokens.s.sol:DeployMockTokens"
+            ;;
         *)
             echo -n ""
             ;;
@@ -118,7 +124,7 @@ deploy() {
 
     local is_testnet=false
 
-    if [[ $network == "sepolia" || $network == "goerli" || $network == "mumbai" ]]; then
+    if [[ $network == "sepolia" || $network == "goerli" || $network == "mumbai" || $network == "holesky" || $network == "base-sepolia" ]]; then
         is_testnet=true
     fi
 

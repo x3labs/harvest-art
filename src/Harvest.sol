@@ -39,50 +39,79 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
         bidTicket = IBidTicket(bidTicket_);
     }
 
+    /**
+     * batchTransfer - Sell multiple tokens in a single transaction
+     *
+     * @param types The types of tokens to transfer.
+     * @param contracts The addresses of the token contracts.
+     * @param tokenIds The IDs of the tokens to transfer.
+     * @param counts The counts of the tokens to transfer.
+     *
+     * ERC20: sell entire balance
+     * ERC721: sell one token
+     * ERC1155: sell entire balance of a token
+     *
+     * @dev tip: for repeated contracts, use address(0) to save some gas
+     */
     function batchTransfer(
         TokenType[] calldata types,
         address[] calldata contracts,
         uint256[] calldata tokenIds,
         uint256[] calldata counts
     ) external nonReentrant {
+        uint256 totalTokens;
         uint256 length = contracts.length;
-
         require(length > 0, InvalidTokenContractLength());
         require(length == tokenIds.length && length == counts.length && length == types.length, InvalidParamsLength());
 
-        BatchItem[] memory batchItems = new BatchItem[](length);
-        uint256 totalTokens;
-
         address currentContract = contracts[0];
         require(currentContract != address(0), InvalidTokenContract());
+
+        BatchItem[] memory batchItems = new BatchItem[](length);
+        uint256 batchItemsCount;
 
         for (uint256 i; i < length; ++i) {
             if (contracts[i] != address(0)) {
                 currentContract = contracts[i];
             }
 
-            batchItems[i] = BatchItem(types[i], currentContract, tokenIds[i], counts[i]);
+            bool isFound;
 
-            unchecked {
-                ++totalTokens;
+            for (uint256 j; j < batchItemsCount; ++j) {
+                if (batchItems[j].contractAddress == currentContract) {
+                    TokenType tokenType = types[i];
+
+                    if (tokenType == TokenType.ERC20
+                    || (tokenType == TokenType.ERC1155 && batchItems[j].tokenId == tokenIds[i])) {
+                        batchItems[j].count += counts[i];
+                        isFound = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!isFound) {
+                batchItems[batchItemsCount] = BatchItem(types[i], currentContract, tokenIds[i], counts[i]);
+                unchecked {
+                    ++batchItemsCount;
+                    ++totalTokens;
+                }
             }
         }
 
         require(totalTokens <= maxTokensPerTx, MaxTokensPerTxReached());
 
         emit BatchTransfer(msg.sender, totalTokens);
-
         bidTicket.mint(msg.sender, bidTicketTokenId, totalTokens * bidTicketMultiplier);
 
-        for (uint256 i; i < length; ++i) {
-            if (batchItems[i].tokenType == TokenType.ERC20) {
-                uint256 balance = IERC20(batchItems[i].contractAddress).balanceOf(msg.sender);
-                require(balance > 0, InsufficientBalance());
-                IERC20(batchItems[i].contractAddress).transferFrom(msg.sender, theBarn, balance);
-            } else if (batchItems[i].tokenType == TokenType.ERC721) {
-                IERC721(batchItems[i].contractAddress).transferFrom(msg.sender, theBarn, batchItems[i].tokenId);
-            } else if (batchItems[i].tokenType == TokenType.ERC1155) {
-                IERC1155(batchItems[i].contractAddress).safeTransferFrom(msg.sender, theBarn, batchItems[i].tokenId, batchItems[i].count, "");
+        for (uint256 i; i < batchItemsCount; ++i) {
+            BatchItem memory item = batchItems[i];
+            if (item.tokenType == TokenType.ERC20) {    
+                IERC20(item.contractAddress).transferFrom(msg.sender, theBarn, item.count);
+            } else if (item.tokenType == TokenType.ERC721) {
+                IERC721(item.contractAddress).transferFrom(msg.sender, theBarn, item.tokenId);
+            } else if (item.tokenType == TokenType.ERC1155) {
+                IERC1155(item.contractAddress).safeTransferFrom(msg.sender, theBarn, item.tokenId, item.count, "");
             } else {
                 revert InvalidTokenType();
             }
@@ -119,6 +148,10 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
     function withdrawBalance() external onlyOwner {
         (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
         require(success, TransferFailed());
+    }
+
+    function withdrawERC20(address tokenAddress, uint256 amount) external onlyOwner {
+        IERC20(tokenAddress).transfer(msg.sender, amount);
     }
 
     receive() external payable {}

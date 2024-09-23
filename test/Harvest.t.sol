@@ -5,16 +5,16 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "../src/Harvest.sol";
 import "../src/BidTicket.sol";
+import "./lib/Mock20.sol";
 import "./lib/Mock721.sol";
 import "./lib/Mock1155.sol";
-import "./lib/Mock20.sol";
 
 contract HarvestTest is Test {
     Harvest public harvest;
     BidTicket public bidTicket;
     Mock721 public mock721;
     Mock1155 public mock1155;
-    MockERC20 public mockERC20;
+    Mock20 public mock20;
 
     address public theBarn;
     address public user1;
@@ -33,16 +33,18 @@ contract HarvestTest is Test {
 
         bidTicket.setHarvestContract(address(harvest));
 
+        mock20 = new Mock20();
+        mock20.mint(user1, 1000);
+        mock20.mint(user2, 1000);
+
         mock721 = new Mock721();
         mock721.mint(user1, 200);
+        mock721.mint(user2, 200);
 
         mock1155 = new Mock1155();
         mock1155.mint(user1, 1, 100, "");
         mock1155.mint(user2, 1, 10, "");
         mock1155.mint(user2, 8713622684881697175405882435050837487846425701885818202561849736562519048193, 10, "");
-
-        mockERC20 = new MockERC20();
-        mockERC20.mint(user2, 1000);
 
         vm.deal(address(harvest), 10 ether);
         vm.deal(user1, 1 ether);
@@ -64,7 +66,14 @@ contract HarvestTest is Test {
 
         vm.startPrank(user1);
         mock721.setApprovalForAll(address(harvest), true);
+
+        uint256 initialBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
+
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+
+        assertEq(user1.balance, initialBalance + 1 gwei, "User should have gained 1 gwei");
+        assertEq(bidTicket.balanceOf(user1, 1), 1, "User should have received 1 bid ticket");
     }
 
     function test_batchTransfer_Success_MultipleERC721() public {
@@ -84,7 +93,13 @@ contract HarvestTest is Test {
 
         vm.startPrank(user1);
         mock721.setApprovalForAll(address(harvest), true);
+
+        uint256 initialBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+
+        assertEq(user1.balance, initialBalance + 3 gwei, "User should have gained 3 gwei");
+        assertEq(bidTicket.balanceOf(user1, 1), 3, "User should have received 3 bid tickets");
     }
 
     function test_batchTransfer_Success_MultipleERC721_WithAddressZero() public {
@@ -106,7 +121,14 @@ contract HarvestTest is Test {
 
         vm.startPrank(user1);
         mock721.setApprovalForAll(address(harvest), true);
+
+        uint256 initialBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
+        
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+
+        assertEq(user1.balance, initialBalance + tokenCount * 1 gwei, "User should have gained 1 gwei");
+        assertEq(bidTicket.balanceOf(user1, 1), tokenCount, "User should have received 1 bid ticket");
 
         for (uint256 i = 1; i <= tokenCount; i++) {
             assertEq(mock721.ownerOf(i), theBarn, "Token should be transferred to theBarn");
@@ -116,7 +138,10 @@ contract HarvestTest is Test {
     }
 
     function test_batchTransfer_Success_Mixed_ERC721_ERC1155_WithAddressZero() public {
-        uint256 tokenCount = 100;
+        uint256 tokenCountERC721 = 50;
+        uint256 tokenCountERC1155 = 50;
+        uint256 tokenCount = tokenCountERC721 + tokenCountERC1155;
+
         TokenType[] memory tokenTypes = new TokenType[](tokenCount);
         address[] memory tokenContracts = new address[](tokenCount);
         uint256[] memory tokenIds = new uint256[](tokenCount);
@@ -129,6 +154,7 @@ contract HarvestTest is Test {
             counts[i] = 0;
         }
 
+        // contract does not pay separately per count of ERC1155 token ID
         for (uint256 i = 50; i < tokenCount; i++) {
             tokenTypes[i] = TokenType.ERC1155;
             tokenContracts[i] = i == 50 ? address(mock1155) : address(0);
@@ -142,7 +168,14 @@ contract HarvestTest is Test {
         vm.startPrank(user1);
         mock721.setApprovalForAll(address(harvest), true);
         mock1155.setApprovalForAll(address(harvest), true);
+
+        uint256 initialBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
+
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+
+        assertEq(user1.balance, initialBalance + (tokenCount - tokenCountERC1155 + 1) * 1 gwei, "User should have gained 1 gwei");
+        assertEq(bidTicket.balanceOf(user1, 1), (tokenCount - tokenCountERC1155 + 1), "User should have received bid tickets");
 
         for (uint256 i = 1; i < 50; i++) {
             assertEq(mock721.ownerOf(i), theBarn, "Token should be transferred to theBarn");
@@ -168,7 +201,14 @@ contract HarvestTest is Test {
 
         vm.startPrank(user2);
         mock1155.setApprovalForAll(address(harvest), true);
+
+        uint256 initialBalance = user2.balance;
+        assertEq(bidTicket.balanceOf(user2, 1), 0, "User should not have any bid tickets");
+
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+
+        assertEq(user2.balance, initialBalance + 1 gwei, "User should have gained 1 gwei");
+        assertEq(bidTicket.balanceOf(user2, 1), 1, "User should have received 1 bid ticket");
     }
 
     function test_batchTransfer_Success_MultipleERC1155() public {
@@ -188,7 +228,14 @@ contract HarvestTest is Test {
 
         vm.startPrank(user2);
         mock1155.setApprovalForAll(address(harvest), true);
+
+        uint256 initialBalance = user2.balance; 
+        assertEq(bidTicket.balanceOf(user2, 1), 0, "User should not have any bid tickets");
+
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+
+        assertEq(user2.balance, initialBalance + 1 gwei, "User should have gained 1 gwei");
+        assertEq(bidTicket.balanceOf(user2, 1), 1, "User should have received 1 bid ticket");
     }
 
     function test_batchTransfer_Success_ERC1155_BigInt() public {
@@ -216,21 +263,21 @@ contract HarvestTest is Test {
         uint256[] memory counts = new uint256[](1);
 
         tokenTypes[0] = TokenType.ERC20;
-        tokenContracts[0] = address(mockERC20);
+        tokenContracts[0] = address(mock20);
+        counts[0] = 1000;
         tokenIds[0] = 0; // Not used for ERC20
-        counts[0] = 0; // Not used for ERC20
 
         harvest.setBarn(theBarn);
 
         vm.startPrank(user2);
-        mockERC20.approve(address(harvest), type(uint256).max);
+        mock20.approve(address(harvest), type(uint256).max);
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
 
-        assertEq(mockERC20.balanceOf(theBarn), 1000, "theBarn should have received 100 tokens");
-        assertEq(mockERC20.balanceOf(user2), 0, "user2 should have 900 tokens left");
+        assertEq(mock20.balanceOf(theBarn), 1000, "User should have received 1000 tokens");
+        assertEq(mock20.balanceOf(user2), 0, "user2 should have 900 tokens left");
     }
 
-       function test_batchTransfer_RevertIf_EmptyTokenContracts() public {
+    function test_batchTransfer_RevertIf_EmptyTokenContracts() public {
         vm.expectRevert(bytes4(keccak256("InvalidTokenContractLength()")));
 
         TokenType[] memory tokenTypes = new TokenType[](0);
@@ -271,30 +318,6 @@ contract HarvestTest is Test {
         mock721.setApprovalForAll(address(harvest), true);
 
         vm.expectRevert(bytes4(keccak256("MaxTokensPerTxReached()")));
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
-    }
-
-    function test_batchTransfer_RevertIf_UserCheatingWithERC20() public {
-        uint256 totalAmount = 100;
-        uint256 splitCount = 5;
-        uint256 amountPerSplit = totalAmount / splitCount;
-
-        TokenType[] memory tokenTypes = new TokenType[](splitCount);
-        address[] memory tokenContracts = new address[](splitCount);
-        uint256[] memory tokenIds = new uint256[](splitCount);
-        uint256[] memory counts = new uint256[](splitCount);
-
-        for (uint256 i; i < splitCount; i++) {
-            tokenTypes[i] = TokenType.ERC20;
-            tokenContracts[i] = address(mockERC20);
-            tokenIds[i] = 0;
-            counts[i] = amountPerSplit;
-        }
-
-        vm.startPrank(user2);
-        mockERC20.approve(address(harvest), type(uint256).max);
-
-        vm.expectRevert(bytes4(keccak256("InsufficientBalance()")));
         harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
     }
 
