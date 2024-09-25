@@ -47,12 +47,9 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
      * @param tokenIds The IDs of the tokens to transfer.
      * @param counts The counts of the tokens to transfer.
      *
-     * ERC20: sell entire balance
-     * ERC721: sell one token
-     * ERC1155: sell entire balance of a token
-     *
      * @dev tip: for repeated contracts, use address(0) to save some gas
      */
+
     function batchTransfer(
         TokenType[] calldata types,
         address[] calldata contracts,

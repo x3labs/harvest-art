@@ -44,6 +44,7 @@ get_rpc_url() {
             echo -n "https://eth-holesky.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         base-sepolia)
+            export ETHERSCAN_API_KEY=$BASESCAN_API_KEY
             echo -n "https://base-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         goerli)
@@ -65,6 +66,7 @@ get_rpc_url() {
             echo -n "https://arb-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         base)
+            export ETHERSCAN_API_KEY=$BASESCAN_API_KEY
             echo -n "https://base-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         *)
@@ -152,6 +154,12 @@ deploy() {
         --sender "$ADDRESS_DEPLOYER" \
         --interactives 1 \
         --broadcast
+}
+
+verifyExample() {
+    #forge verify-contract 0x62613AA9594D0116b5CA23aCd37dDDAc90c67E5c \
+    #    src/BidTicket.sol:BidTicket --watch --chain-id 84532 \
+    #--constructor-args $(cast abi-encode "constructor(address)" 0x69B1A9f37fFEe30a992388A46883c6880527B818)
 }
 
 if [ $# -ne 2 ]; then
