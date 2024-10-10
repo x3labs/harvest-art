@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.27;
+pragma solidity 0.8.27;
 
 interface IAuctions {
     function startAuctionERC721(uint256 startingBid, address tokenAddress, uint256[] calldata tokenIds) external payable;

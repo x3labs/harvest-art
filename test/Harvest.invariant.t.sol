@@ -16,6 +16,7 @@ contract HarvestInvariantTest is Test {
     Mock20 public mock20;
 
     address public theBarn;
+    address public theFarmer;
     address public user;
 
     uint256 public constant INITIAL_BALANCE = 100 ether;
@@ -23,10 +24,11 @@ contract HarvestInvariantTest is Test {
 
     function setUp() public {
         theBarn = vm.addr(1);
+        theFarmer = vm.addr(69);
         user = vm.addr(2);
 
         bidTicket = new BidTicket(address(this));
-        harvest = new Harvest(address(this), theBarn, address(bidTicket));
+        harvest = new Harvest(address(this), theBarn, theFarmer,address(bidTicket));
 
         bidTicket.setHarvestContract(address(harvest));
 
@@ -86,9 +88,21 @@ contract HarvestInvariantTest is Test {
             expectedBidTickets,
             "User did not receive correct number of bid tickets"
         );
+
+        uint256 totalErc721Sold = INITIAL_TOKENS - mock721.balanceOf(user);
+        uint256 totalErc1155Sold = INITIAL_TOKENS - mock1155.balanceOf(user, 1);
+        uint256 totalErc20Sold = INITIAL_TOKENS - mock20.balanceOf(user);
+
+        uint256 totalTokensSold = totalErc721Sold + totalErc1155Sold + totalErc20Sold;
+
+        assertEq(
+            totalTokensSold,
+            totalTokensTransferred,
+            "Total tokens sold does not match ETH transferred"
+        );
     }
 
-    function batchTransfer(uint256 seed) public {
+    function batchSale(uint256 seed) public {
         uint256 tokenCount = (seed % 10) + 1;
         TokenType[] memory types = new TokenType[](tokenCount);
         address[] memory contracts = new address[](tokenCount);
@@ -115,6 +129,32 @@ contract HarvestInvariantTest is Test {
         }
 
         vm.prank(user);
-        harvest.batchTransfer(types, contracts, tokenIds, counts);
+        harvest.batchSale(types, contracts, tokenIds, counts, false);
+    }
+
+    function erc721SingleSale(uint256 seed) public {
+        uint256 tokenId = seed % INITIAL_TOKENS;
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenId;
+
+        vm.prank(user);
+        harvest.erc721Sale(address(mock721), tokenIds, false);
+    }
+
+    function erc1155SingleSale(uint256 seed) public {
+        uint256[] memory tokenIds = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokenIds[0] = 1;
+        amounts[0] = (seed % 5) + 1;
+
+        vm.prank(user);
+        harvest.erc1155Sale(address(mock1155), tokenIds, amounts, false);
+    }
+
+    function erc20SingleSale(uint256 seed) public {
+        uint256 amount = (seed % 100) + 1;
+        
+        vm.prank(user);
+        harvest.erc20Sale(address(mock20), amount, false);
     }
 }

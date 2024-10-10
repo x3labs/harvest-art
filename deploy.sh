@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. .env.local
+source .env.local
 
 if [ -z "$ALCHEMY_API_KEY" ]; then
     echo "Missing ALCHEMY_API_KEY"
@@ -47,16 +47,15 @@ get_rpc_url() {
             export ETHERSCAN_API_KEY=$BASESCAN_API_KEY
             echo -n "https://base-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
-        goerli)
-            echo -n "https://eth-goerli.g.alchemy.com/v2/$ALCHEMY_API_KEY"
-            ;;
-        mumbai)
-            echo -n "https://polygon-mumbai.g.alchemy.com/v2/$ALCHEMY_API_KEY"
+        amoy)
+            export ETHERSCAN_API_KEY=$POLYGONSCAN_API_KEY
+            echo -n "https://polygon-amoy.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         mainnet)
             echo -n "https://eth-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         polygon)
+            export ETHERSCAN_API_KEY=$POLYGONSCAN_API_KEY
             echo -n "https://polygon-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         optimism)
@@ -68,6 +67,9 @@ get_rpc_url() {
         base)
             export ETHERSCAN_API_KEY=$BASESCAN_API_KEY
             echo -n "https://base-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
+            ;;
+        zksync)
+            echo -n "https://zksync-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         *)
             echo -n ""
@@ -126,7 +128,7 @@ deploy() {
 
     local is_testnet=false
 
-    if [[ $network == "sepolia" || $network == "goerli" || $network == "mumbai" || $network == "holesky" || $network == "base-sepolia" ]]; then
+    if [[ $network == "sepolia" || $network == "amoy" || $network == "mumbai" || $network == "holesky" || $network == "base-sepolia" ]]; then
         is_testnet=true
     fi
 
@@ -145,9 +147,10 @@ deploy() {
     forge script $script \
         -vvv \
         --rpc-url "$rpc_url" \
+        --force \
         --optimize \
-        --optimizer-runs 10000 \
-        --gas-estimate-multiplier 150 \
+        --optimizer-runs 100000 \
+        --gas-estimate-multiplier 125 \
         --legacy \
         --verify \
         --retries 100 \
@@ -156,15 +159,16 @@ deploy() {
         --broadcast
 }
 
-verifyExample() {
-    #forge verify-contract 0x62613AA9594D0116b5CA23aCd37dDDAc90c67E5c \
-    #    src/BidTicket.sol:BidTicket --watch --chain-id 84532 \
-    #--constructor-args $(cast abi-encode "constructor(address)" 0x69B1A9f37fFEe30a992388A46883c6880527B818)
-}
+# verifyExample() {
+    # forge verify-contract 0x62613AA9594D0116b5CA23aCd37dDDAc90c67E5c \
+    #    src/BidTicket.sol:BidTicket --watch --chain-id 80002 \
+    # --constructor-args $(cast abi-encode "constructor(address)" 0x69B1A9f37fFEe30a992388A46883c6880527B818) \
+    # --optimizer-runs 10000
+# }
 
 if [ $# -ne 2 ]; then
     echo "Usage: $0 <network> <script_name>"
-    echo "Networks: anvil, sepolia, goerli, mumbai, mainnet, polygon, optimism, arbitrum"
+    echo "Networks: anvil, sepolia, mainnet, polygon, optimism, arbitrum, base, base-sepolia, zksync"
     echo "Script names: all, harvest, auctions, bidticket"
     exit 1
 fi

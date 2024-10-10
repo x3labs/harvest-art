@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.27;
+pragma solidity 0.8.27;
 
 //                            _.-^-._    .--.
 //                         .-'   _   '-. |__|
@@ -50,7 +50,7 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
     address public theBarn;
     address public theFarmer;
     uint256 public abandonmentFeePercent = 20;
-    uint256 public antiSnipeDuration = 1 hours;
+    uint256 public antiSnipeDuration = 15 minutes;
     uint256 public auctionDuration = 3 days;
     uint256 public bidTicketCostBid = 1;
     uint256 public bidTicketCostStart = 1;
@@ -94,9 +94,10 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         address tokenAddress,
         uint256[] calldata tokenIds
     ) external payable nonReentrant {
+        uint256 length = tokenIds.length;
         require(startingBid >= minStartingBid, StartPriceTooLow());
-        require(tokenIds.length > 0, InvalidLengthOfTokenIds());
-        require(tokenIds.length <= maxTokens, MaxTokensPerTxReached());
+        require(length > 0, InvalidLengthOfTokenIds());
+        require(length <= maxTokens, MaxTokensPerTxReached());
 
         _processPayment(startingBid);
 
@@ -107,13 +108,13 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         auction.endTime = uint64(block.timestamp + auctionDuration);
         auction.highestBidder = msg.sender;
         auction.highestBid = startingBid;
-        auction.tokenCount = uint8(tokenIds.length);
+        auction.tokenCount = uint8(length);
         auction.bidderCount = 1;
         auction.bidDelta = startingBid;
 
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
 
-        for (uint256 i; i < tokenIds.length; ++i) {
+        for (uint256 i; i < length; ++i) {
             tokenMap[i] = tokenIds[i];
         }
 
@@ -145,9 +146,10 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         uint256[] calldata tokenIds,
         uint256[] calldata amounts
     ) external payable nonReentrant {
+        uint256 length = tokenIds.length;
         require(startingBid >= minStartingBid, StartPriceTooLow());
-        require(tokenIds.length > 0, InvalidLengthOfTokenIds());
-        require(tokenIds.length == amounts.length, InvalidLengthOfAmounts());
+        require(length > 0, InvalidLengthOfTokenIds());
+        require(length == amounts.length, InvalidLengthOfAmounts());
  
         _processPayment(startingBid);
 
@@ -158,14 +160,14 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         auction.endTime = uint64(block.timestamp + auctionDuration);
         auction.highestBidder = msg.sender;
         auction.highestBid = startingBid;
-        auction.tokenCount = uint8(tokenIds.length);
+        auction.tokenCount = uint8(length);
         auction.bidderCount = 1;
         auction.bidDelta = startingBid;
 
         mapping(uint256 => uint256) storage tokenMap = auction.tokenIds;
         mapping(uint256 => uint256) storage amountMap = auction.amounts;
 
-        for (uint256 i; i < tokenIds.length; ++i) {
+        for (uint256 i; i < length; ++i) {
             tokenMap[i] = tokenIds[i];
             amountMap[i] = amounts[i];
         }
@@ -220,7 +222,7 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
             uint256 reward = auction.bidDelta * outbidRewardPercent / 100;
             auction.rewards[prevHighestBidder] += reward;
 
-            // Update the bid delta for future potential outbids
+            // Update the bid delta for the next potential outbid
             auction.bidDelta = bidAmount - prevHighestBid;
         }
 
@@ -380,8 +382,9 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
 
     function getPendingRewards(address bidder, uint256[] calldata auctionIds) external view returns (uint256) {
         uint256 totalRewards;
+        uint256 length = auctionIds.length;
 
-        for (uint256 i; i < auctionIds.length; ++i) {
+        for (uint256 i; i < length; ++i) {
             if (auctions[auctionIds[i]].status == Status.Active) {
                 totalRewards += auctions[auctionIds[i]].rewards[bidder];
             }
@@ -494,16 +497,13 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
 
     function _validateAuctionTokensERC721(address tokenAddress, uint256[] calldata tokenIds) internal {
         IERC721 erc721Contract = IERC721(tokenAddress);
-
+        uint256 length = tokenIds.length;
         mapping(uint256 => bool) storage auctionTokens = auctionTokensERC721[tokenAddress];
 
-        for (uint256 i; i < tokenIds.length; ++i) {
+        for (uint256 i; i < length; ++i) {
             uint256 tokenId = tokenIds[i];
-
             require(!auctionTokens[tokenId], TokenAlreadyInAuction());
-
             auctionTokens[tokenId] = true;
-
             require(erc721Contract.ownerOf(tokenId) == theBarn, TokenNotOwned());
         }
     }
@@ -521,8 +521,9 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
         uint256 amount;
 
         mapping(uint256 => uint256) storage auctionTokens = auctionTokensERC1155[tokenAddress];
+        uint256 length = tokenIds.length;
 
-        for (uint256 i; i < tokenIds.length; ++i) {
+        for (uint256 i; i < length; ++i) {
             tokenId = tokenIds[i];
             amount = amounts[i];
 
@@ -661,8 +662,9 @@ contract Auctions is IAuctions, Ownable, ReentrancyGuard {
 
     function _distributeRewards(Auction storage auction) internal returns (uint256) {
         uint256 totalRewards;
+        uint256 length = auction.bidderCount;
 
-        for (uint256 i; i < auction.bidderCount; ++i) {
+        for (uint256 i; i < length; ++i) {
             address bidder = auction.bidders[i];
             uint256 reward = auction.rewards[bidder];
 

@@ -13,4 +13,9 @@ goerli = "${GOERLI_RPC_URL}"
 
 [etherscan]
 sepolia = { key = "${ETHERSCAN_API_KEY}" }
-goerli = { key = "${ETHERSCAN_API_KEY}" }
+1 = { key = "${ETHERSCAN_API_KEY}" }
+11155111 = { key = "${ETHERSCAN_API_KEY}" }
+8453 = { key = "${BASESCAN_API_KEY}" }
+84532 = { key = "${BASESCAN_API_KEY}" }
+137 = { key = "${POLYGONSCAN_API_KEY}" }
+80002 = { key = "${POLYGONSCAN_API_KEY}" }

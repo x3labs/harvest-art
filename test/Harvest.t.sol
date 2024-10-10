@@ -17,6 +17,7 @@ contract HarvestTest is Test {
     Mock20 public mock20;
 
     address public theBarn;
+    address public theFarmer;
     address public user1;
     address public user2;
 
@@ -25,13 +26,16 @@ contract HarvestTest is Test {
 
     function setUp() public {
         theBarn = vm.addr(1);
+        theFarmer = vm.addr(69);
         user1 = vm.addr(2);
         user2 = vm.addr(3);
 
         bidTicket = new BidTicket(address(this));
-        harvest = new Harvest(address(this), theBarn, address(bidTicket));
+        harvest = new Harvest(address(this), theBarn, theFarmer, address(bidTicket));
 
         bidTicket.setHarvestContract(address(harvest));
+
+        harvest.setServiceFee(0 ether);
 
         mock20 = new Mock20();
         mock20.mint(user1, 1000);
@@ -43,7 +47,9 @@ contract HarvestTest is Test {
 
         mock1155 = new Mock1155();
         mock1155.mint(user1, 1, 100, "");
+        mock1155.mint(user1, 2, 100, "");
         mock1155.mint(user2, 1, 10, "");
+        mock1155.mint(user2, 2, 10, "");
         mock1155.mint(user2, 8713622684881697175405882435050837487846425701885818202561849736562519048193, 10, "");
 
         vm.deal(address(harvest), 10 ether);
@@ -51,7 +57,7 @@ contract HarvestTest is Test {
         vm.deal(user2, 1 ether);
     }
 
-    function test_batchTransfer_Success_ERC721() public {
+    function test_batchSale_Success_ERC721() public {
         TokenType[] memory tokenTypes = new TokenType[](1);
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
@@ -63,6 +69,7 @@ contract HarvestTest is Test {
         counts[0] = 0;
 
         harvest.setBarn(theBarn);
+        harvest.setServiceFee(0.01 ether);
 
         vm.startPrank(user1);
         mock721.setApprovalForAll(address(harvest), true);
@@ -70,13 +77,14 @@ contract HarvestTest is Test {
         uint256 initialBalance = user1.balance;
         assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
 
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale{value: 0.01 ether}(tokenTypes, tokenContracts, tokenIds, counts, false);
 
-        assertEq(user1.balance, initialBalance + 1 gwei, "User should have gained 1 gwei");
+        assertEq(user1.balance, initialBalance + 1 gwei - harvest.serviceFee(), "User should have gained 1 gwei minus service fee");
         assertEq(bidTicket.balanceOf(user1, 1), 1, "User should have received 1 bid ticket");
+        assertEq(address(theFarmer).balance, 0.01 ether - 1 gwei, "Farmer should have received the service fee");
     }
 
-    function test_batchTransfer_Success_MultipleERC721() public {
+    function test_batchSale_Success_MultipleERC721() public {
         TokenType[] memory tokenTypes = new TokenType[](3);
         address[] memory tokenContracts = new address[](3);
         uint256[] memory tokenIds = new uint256[](3);
@@ -96,13 +104,13 @@ contract HarvestTest is Test {
 
         uint256 initialBalance = user1.balance;
         assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
 
         assertEq(user1.balance, initialBalance + 3 gwei, "User should have gained 3 gwei");
         assertEq(bidTicket.balanceOf(user1, 1), 3, "User should have received 3 bid tickets");
     }
 
-    function test_batchTransfer_Success_MultipleERC721_WithAddressZero() public {
+    function test_batchSale_Success_MultipleERC721_WithAddressZero() public {
         uint256 tokenCount = 100;
         TokenType[] memory tokenTypes = new TokenType[](tokenCount);
         address[] memory tokenContracts = new address[](tokenCount);
@@ -125,7 +133,7 @@ contract HarvestTest is Test {
         uint256 initialBalance = user1.balance;
         assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
         
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
 
         assertEq(user1.balance, initialBalance + tokenCount * 1 gwei, "User should have gained 1 gwei");
         assertEq(bidTicket.balanceOf(user1, 1), tokenCount, "User should have received 1 bid ticket");
@@ -137,7 +145,7 @@ contract HarvestTest is Test {
         vm.stopPrank();
     }
 
-    function test_batchTransfer_Success_Mixed_ERC721_ERC1155_WithAddressZero() public {
+    function test_batchSale_Success_Mixed_ERC721_ERC1155_WithAddressZero() public {
         uint256 tokenCountERC721 = 50;
         uint256 tokenCountERC1155 = 50;
         uint256 tokenCount = tokenCountERC721 + tokenCountERC1155;
@@ -154,7 +162,6 @@ contract HarvestTest is Test {
             counts[i] = 0;
         }
 
-        // contract does not pay separately per count of ERC1155 token ID
         for (uint256 i = 50; i < tokenCount; i++) {
             tokenTypes[i] = TokenType.ERC1155;
             tokenContracts[i] = i == 50 ? address(mock1155) : address(0);
@@ -164,6 +171,7 @@ contract HarvestTest is Test {
 
         harvest.setBarn(theBarn);
         harvest.setMaxTokensPerTx(tokenCount);
+        harvest.setServiceFee(0.01 ether);
 
         vm.startPrank(user1);
         mock721.setApprovalForAll(address(harvest), true);
@@ -172,21 +180,22 @@ contract HarvestTest is Test {
         uint256 initialBalance = user1.balance;
         assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
 
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale{value: 0.01 ether}(tokenTypes, tokenContracts, tokenIds, counts, false);
 
-        assertEq(user1.balance, initialBalance + (tokenCount - tokenCountERC1155 + 1) * 1 gwei, "User should have gained 1 gwei");
-        assertEq(bidTicket.balanceOf(user1, 1), (tokenCount - tokenCountERC1155 + 1), "User should have received bid tickets");
+        assertEq(user1.balance, initialBalance + tokenCount * 1 gwei - harvest.serviceFee(), "User should have gained 1 gwei minus service fee");
+        assertEq(bidTicket.balanceOf(user1, 1), tokenCount, "User should have received bid tickets");
 
         for (uint256 i = 1; i < 50; i++) {
             assertEq(mock721.ownerOf(i), theBarn, "Token should be transferred to theBarn");
         }
         
         assertEq(mock1155.balanceOf(theBarn, 1), 50, "Token should be transferred to theBarn");
+        assertEq(address(theFarmer).balance, 0.01 ether - tokenCount * 1 gwei, "Farmer should have received the service fee");
 
         vm.stopPrank();
     }
 
-    function test_batchTransfer_Success_ERC1155() public {
+    function test_batchSale_Success_ERC1155() public {
         TokenType[] memory tokenTypes = new TokenType[](1);
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
@@ -205,13 +214,13 @@ contract HarvestTest is Test {
         uint256 initialBalance = user2.balance;
         assertEq(bidTicket.balanceOf(user2, 1), 0, "User should not have any bid tickets");
 
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
 
         assertEq(user2.balance, initialBalance + 1 gwei, "User should have gained 1 gwei");
         assertEq(bidTicket.balanceOf(user2, 1), 1, "User should have received 1 bid ticket");
     }
 
-    function test_batchTransfer_Success_MultipleERC1155() public {
+    function test_batchSale_Success_MultipleERC1155() public {
         TokenType[] memory tokenTypes = new TokenType[](3);
         address[] memory tokenContracts = new address[](3);
         uint256[] memory tokenIds = new uint256[](3);
@@ -232,13 +241,13 @@ contract HarvestTest is Test {
         uint256 initialBalance = user2.balance; 
         assertEq(bidTicket.balanceOf(user2, 1), 0, "User should not have any bid tickets");
 
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
 
-        assertEq(user2.balance, initialBalance + 1 gwei, "User should have gained 1 gwei");
-        assertEq(bidTicket.balanceOf(user2, 1), 1, "User should have received 1 bid ticket");
+        assertEq(user2.balance, initialBalance + 3 gwei, "User should have gained 3 gwei");
+        assertEq(bidTicket.balanceOf(user2, 1), 3, "User should have received 3 bid ticket");
     }
 
-    function test_batchTransfer_Success_ERC1155_BigInt() public {
+    function test_batchSale_Success_ERC1155_BigInt() public {
         TokenType[] memory tokenTypes = new TokenType[](1);
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
@@ -253,10 +262,10 @@ contract HarvestTest is Test {
 
         vm.startPrank(user2);
         mock1155.setApprovalForAll(address(harvest), true);
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
     }
 
-    function test_batchTransfer_Success_ERC20() public {
+    function test_batchSale_Success_ERC20() public {
         TokenType[] memory tokenTypes = new TokenType[](1);
         address[] memory tokenContracts = new address[](1);
         uint256[] memory tokenIds = new uint256[](1);
@@ -271,13 +280,13 @@ contract HarvestTest is Test {
 
         vm.startPrank(user2);
         mock20.approve(address(harvest), type(uint256).max);
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
 
         assertEq(mock20.balanceOf(theBarn), 1000, "User should have received 1000 tokens");
         assertEq(mock20.balanceOf(user2), 0, "user2 should have 900 tokens left");
     }
 
-    function test_batchTransfer_RevertIf_EmptyTokenContracts() public {
+    function test_batchSale_RevertIf_EmptyTokenContracts() public {
         vm.expectRevert(bytes4(keccak256("InvalidTokenContractLength()")));
 
         TokenType[] memory tokenTypes = new TokenType[](0);
@@ -285,10 +294,10 @@ contract HarvestTest is Test {
         uint256[] memory tokenIds = new uint256[](0);
         uint256[] memory counts = new uint256[](0);
 
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
     }
 
-    function test_batchTransfer_RevertIf_MismatchedLengths() public {
+    function test_batchSale_RevertIf_MismatchedLengths() public {
         vm.expectRevert(bytes4(keccak256("InvalidParamsLength()")));
 
         TokenType[] memory tokenTypes = new TokenType[](2);
@@ -296,10 +305,10 @@ contract HarvestTest is Test {
         uint256[] memory tokenIds = new uint256[](1);
         uint256[] memory counts = new uint256[](1);
 
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
     }
 
-    function test_batchTransfer_RevertIf_ExceedMaxTokensPerTx() public {
+    function test_batchSale_RevertIf_ExceedMaxTokensPerTx() public {
         harvest.setMaxTokensPerTx(10);
 
         TokenType[] memory tokenTypes = new TokenType[](11);
@@ -318,7 +327,7 @@ contract HarvestTest is Test {
         mock721.setApprovalForAll(address(harvest), true);
 
         vm.expectRevert(bytes4(keccak256("MaxTokensPerTxReached()")));
-        harvest.batchTransfer(tokenTypes, tokenContracts, tokenIds, counts);
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
     }
 
     function test_withdrawBalance_Success() public {
@@ -349,5 +358,210 @@ contract HarvestTest is Test {
 
     function test_setMaxTokensPerTx_Success() public {
         harvest.setMaxTokensPerTx(1000000);
+    }
+
+    function test_erc20Sale_Success() public {
+        uint256 amount = 500;
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock20.approve(address(harvest), type(uint256).max);
+
+        uint256 initialBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
+
+        harvest.erc20Sale(address(mock20), amount, false);
+
+        assertEq(user1.balance, initialBalance + 1 gwei, "User should have gained 1 gwei");
+        assertEq(bidTicket.balanceOf(user1, 1), 1, "User should have received 1 bid ticket");
+        assertEq(mock20.balanceOf(theBarn), amount, "Barn should have received the tokens");
+        assertEq(mock20.balanceOf(user1), 1000 - amount, "User should have transferred the tokens");
+
+        vm.stopPrank();
+    }
+
+    function test_erc20Sale_Success_WithServiceFee() public {
+        uint256 amount = 500;
+        harvest.setBarn(theBarn);
+        harvest.setServiceFee(0.01 ether);
+
+        vm.startPrank(user1);
+        mock20.approve(address(harvest), type(uint256).max);
+
+        uint256 initialBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
+
+        harvest.erc20Sale{value: 0.01 ether}(address(mock20), amount, false);
+
+        assertEq(user1.balance, initialBalance + 1 gwei - harvest.serviceFee(), "User should have gained 1 gwei minus service fee");
+        assertEq(bidTicket.balanceOf(user1, 1), 1, "User should have received 1 bid ticket");
+        assertEq(mock20.balanceOf(theBarn), amount, "Barn should have received the tokens");
+        assertEq(mock20.balanceOf(user1), 1000 - amount, "User should have transferred the tokens");
+        assertEq(address(theFarmer).balance, 0.01 ether - 1 gwei, "Farmer should have received the service fee");
+
+        vm.stopPrank();
+    }
+
+
+    function test_erc721Sale_Success() public {
+        uint256[] memory tokenIds = new uint256[](3);
+        tokenIds[0] = 1;
+        tokenIds[1] = 2;
+        tokenIds[2] = 3;
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock721.setApprovalForAll(address(harvest), true);
+
+        uint256 initialBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
+
+        harvest.erc721Sale(address(mock721), tokenIds, false);
+
+        assertEq(user1.balance, initialBalance + 3 gwei, "User should have gained 3 gwei");
+        assertEq(bidTicket.balanceOf(user1, 1), 3, "User should have received 3 bid tickets");
+        
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            assertEq(mock721.ownerOf(tokenIds[i]), theBarn, "Token should be transferred to theBarn");
+        }
+
+        vm.stopPrank();
+    }
+
+    function test_erc721Sale_Success_WithServiceFee() public {
+        uint256[] memory tokenIds = new uint256[](3);
+        tokenIds[0] = 1;
+        tokenIds[1] = 2;
+        tokenIds[2] = 3;
+
+        harvest.setBarn(theBarn);
+        harvest.setServiceFee(0.01 ether);
+
+        vm.startPrank(user1);
+        mock721.setApprovalForAll(address(harvest), true);
+
+        uint256 initialBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
+
+        harvest.erc721Sale{value: 0.01 ether}(address(mock721), tokenIds, false);
+
+        assertEq(user1.balance, initialBalance + 3 gwei - harvest.serviceFee(), "User should have gained 3 gwei minus service fee");
+        assertEq(bidTicket.balanceOf(user1, 1), 3, "User should have received 3 bid tickets");
+        
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            assertEq(mock721.ownerOf(tokenIds[i]), theBarn, "Token should be transferred to theBarn");
+        }
+
+        assertEq(address(theFarmer).balance, 0.01 ether - 3 gwei, "Farmer should have received the service fee");
+
+        vm.stopPrank();
+    }
+
+    function test_erc1155Sale_Success() public {
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = 1;
+        tokenIds[1] = 2;
+
+        uint256[] memory counts = new uint256[](2);
+        counts[0] = 5;
+        counts[1] = 3;
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock1155.setApprovalForAll(address(harvest), true);
+
+        uint256 initialBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
+
+        harvest.erc1155Sale(address(mock1155), tokenIds, counts, false);
+
+        assertEq(user1.balance, initialBalance + 2 gwei, "User should have gained 2 gwei");
+        assertEq(bidTicket.balanceOf(user1, 1), 2, "User should have received 2 bid tickets");
+        
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            assertEq(mock1155.balanceOf(theBarn, tokenIds[i]), counts[i], "Tokens should be transferred to theBarn");
+        }
+
+        vm.stopPrank();
+    }
+
+    function test_erc1155Sale_Success_WithServiceFee() public {
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = 1;
+        tokenIds[1] = 2;
+
+        uint256[] memory counts = new uint256[](2);
+        counts[0] = 5;
+        counts[1] = 3;
+
+        harvest.setBarn(theBarn);
+        harvest.setServiceFee(0.01 ether);
+
+        vm.startPrank(user1);
+        mock1155.setApprovalForAll(address(harvest), true);
+
+        uint256 initialBalance = user1.balance;
+        assertEq(bidTicket.balanceOf(user1, 1), 0, "User should not have any bid tickets");
+
+        harvest.erc1155Sale{value: 0.01 ether}(address(mock1155), tokenIds, counts, false);
+
+        assertEq(user1.balance, initialBalance + 2 gwei - harvest.serviceFee(), "User should have gained 2 gwei minus service fee");
+        assertEq(bidTicket.balanceOf(user1, 1), 2, "User should have received 2 bid tickets");
+        
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            assertEq(mock1155.balanceOf(theBarn, tokenIds[i]), counts[i], "Tokens should be transferred to theBarn");
+        }
+
+        assertEq(address(theFarmer).balance, 0.01 ether - 2 gwei, "Farmer should have received the service fee");
+
+        vm.stopPrank();
+    }
+
+    function test_erc20Sale_RevertIf_InsufficientBalance() public {
+        uint256 amount = 1001;
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock20.approve(address(harvest), type(uint256).max);
+
+        vm.expectPartialRevert(bytes4(keccak256("ERC20InsufficientBalance(address,uint256,uint256)")));
+        harvest.erc20Sale(address(mock20), amount, false);
+
+        vm.stopPrank();
+    }
+
+    function test_erc721Sale_RevertIf_NotOwner() public {
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 201;
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock721.setApprovalForAll(address(harvest), true);
+
+        vm.expectPartialRevert(bytes4(keccak256("ERC721InsufficientApproval(address,uint256)")));
+        harvest.erc721Sale(address(mock721), tokenIds, false);
+
+        vm.stopPrank();
+    }
+
+    function test_erc1155Sale_RevertIf_InsufficientBalance() public {
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 1;
+
+        uint256[] memory counts = new uint256[](1);
+        counts[0] = 101;
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock1155.setApprovalForAll(address(harvest), true);
+
+        vm.expectPartialRevert(bytes4(keccak256("ERC1155InsufficientBalance(address,uint256,uint256,uint256)")));
+        harvest.erc1155Sale(address(mock1155), tokenIds, counts, false);
+
+        vm.stopPrank();
     }
 }

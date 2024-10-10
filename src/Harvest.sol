@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.27;
+pragma solidity 0.8.27;
 
 //                            _.-^-._    .--.
 //                         .-'   _   '-. |__|
@@ -26,100 +26,206 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
 
     IBidTicket public bidTicket;
     address public theBarn;
+    address public theFarmer;
     uint256 public salePrice = 1 gwei;
+    uint256 public serviceFee = 0.001 ether;
     uint256 public maxTokensPerTx = 500;
     uint256 public bidTicketTokenId = 1;
     uint256 public bidTicketMultiplier = 1;
 
     mapping(address => uint256) public tokenIdToMultiplier;
 
-    constructor(address owner_, address theBarn_, address bidTicket_) {
+    constructor(
+        address owner_,
+        address theBarn_,
+        address theFarmer_,
+        address bidTicket_
+    ) {
         _initializeOwner(owner_);
         theBarn = theBarn_;
+        theFarmer = theFarmer_;
         bidTicket = IBidTicket(bidTicket_);
     }
 
+    /** 
+     * erc20Sale - Sell tokens from a single ERC-20 contract.
+     *
+     * @param contractAddress The address of the token contract.
+     * @param amount The amount of tokens to transfer.
+     *
+     */
+
+    function erc20Sale(
+        address contractAddress,
+        uint256 amount,
+        bool skipBidTicket
+    ) external payable nonReentrant {
+        require(msg.value >= serviceFee, InvalidServiceFee());
+
+        emit Sale(msg.sender, salePrice);
+
+        if (!skipBidTicket) {
+            bidTicket.mint(msg.sender, bidTicketTokenId, 1 * bidTicketMultiplier);
+        }
+
+        IERC20(contractAddress).transferFrom(msg.sender, theBarn, amount);
+
+        (bool success,) = payable(msg.sender).call{value: salePrice}("");
+        require(success, TransferFailed());
+
+        _transferServiceFee(salePrice);
+    }
+
+    /** 
+     * erc721Sale - Sell tokens from a single ERC-721 contract.
+     *
+     * @param contractAddress The address of the token contract.
+     * @param tokenIds The IDs of the tokens to transfer.
+     *
+     */
+
+    function erc721Sale(
+        address contractAddress,
+        uint256[] calldata tokenIds,
+        bool skipBidTicket
+    ) external payable nonReentrant {
+        uint256 length = tokenIds.length;
+        require(length < maxTokensPerTx, MaxTokensPerTxReached());
+        require(msg.value >= serviceFee, InvalidServiceFee());
+
+        uint256 totalSalePrice = salePrice * length;
+
+        emit Sale(msg.sender, totalSalePrice);
+        
+        if (!skipBidTicket) {
+            bidTicket.mint(msg.sender, bidTicketTokenId, length * bidTicketMultiplier);
+        }
+
+        for (uint256 i; i < length; ++i) {
+            IERC721(contractAddress).transferFrom(msg.sender, theBarn, tokenIds[i]);
+        }
+        
+        (bool success,) = payable(msg.sender).call{value: totalSalePrice}("");
+        require(success, TransferFailed());
+
+        _transferServiceFee(totalSalePrice);
+    }
+
+    /** 
+     * erc1155Sale - Sell tokens from a single ERC-1155 contract.
+     *
+     * @param contractAddress The address of the token contract.
+     * @param tokenIds The IDs of the tokens to transfer.
+     * @param counts The counts of the tokens to transfer.
+     *
+     */
+
+    function erc1155Sale(
+        address contractAddress,
+        uint256[] calldata tokenIds,
+        uint256[] calldata counts,
+        bool skipBidTicket
+    ) external payable nonReentrant {
+        uint256 length = tokenIds.length;
+        require(length == counts.length, InvalidParamsLength());
+        require(msg.value >= serviceFee, InvalidServiceFee());
+
+        uint256 totalSalePrice = salePrice * length;
+
+        emit Sale(msg.sender, totalSalePrice);
+        
+        if (!skipBidTicket) {
+            bidTicket.mint(msg.sender, bidTicketTokenId, length * bidTicketMultiplier);
+        }
+
+        IERC1155(contractAddress).safeBatchTransferFrom(msg.sender, theBarn, tokenIds, counts, "");
+
+        (bool success,) = payable(msg.sender).call{value: totalSalePrice}("");
+        require(success, TransferFailed());
+
+        _transferServiceFee(totalSalePrice);
+    }
+
     /**
-     * batchTransfer - Sell multiple tokens in a single transaction
+     * batchSale - Sell tokens from one or more contracts in a single transaction
      *
      * @param types The types of tokens to transfer.
      * @param contracts The addresses of the token contracts.
      * @param tokenIds The IDs of the tokens to transfer.
      * @param counts The counts of the tokens to transfer.
      *
-     * @dev tip: for repeated contracts, use address(0) to save some gas
+     * Protip: for repeated contracts, use address(0) to save some gas (or use the other sale functions).
      */
 
-    function batchTransfer(
+    function batchSale(
         TokenType[] calldata types,
         address[] calldata contracts,
         uint256[] calldata tokenIds,
-        uint256[] calldata counts
-    ) external nonReentrant {
-        uint256 totalTokens;
-        uint256 length = contracts.length;
+        uint256[] calldata counts,
+        bool skipBidTicket
+    ) external payable nonReentrant {
+        uint256 length = types.length;
         require(length > 0, InvalidTokenContractLength());
-        require(length == tokenIds.length && length == counts.length && length == types.length, InvalidParamsLength());
+        require(length == contracts.length && length == tokenIds.length && length == counts.length, InvalidParamsLength());
+        require(msg.value >= serviceFee, InvalidServiceFee());
 
-        address currentContract = contracts[0];
-        require(currentContract != address(0), InvalidTokenContract());
-
-        BatchItem[] memory batchItems = new BatchItem[](length);
-        uint256 batchItemsCount;
+        uint256 totalTokens;
+        address currentContract;
+        TokenType currentType;
 
         for (uint256 i; i < length; ++i) {
-            if (contracts[i] != address(0)) {
-                currentContract = contracts[i];
+            currentContract = contracts[i] == address(0) ? currentContract : contracts[i];
+            require(currentContract != address(0), InvalidTokenContract());
+
+            unchecked {
+                ++totalTokens;
             }
 
-            bool isFound;
+            uint256 count = counts[i];
+            currentType = types[i];
 
-            for (uint256 j; j < batchItemsCount; ++j) {
-                if (batchItems[j].contractAddress == currentContract) {
-                    TokenType tokenType = types[i];
-
-                    if (tokenType == TokenType.ERC20
-                    || (tokenType == TokenType.ERC1155 && batchItems[j].tokenId == tokenIds[i])) {
-                        batchItems[j].count += counts[i];
-                        isFound = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!isFound) {
-                batchItems[batchItemsCount] = BatchItem(types[i], currentContract, tokenIds[i], counts[i]);
-                unchecked {
-                    ++batchItemsCount;
-                    ++totalTokens;
-                }
-            }
-        }
-
-        require(totalTokens <= maxTokensPerTx, MaxTokensPerTxReached());
-
-        emit BatchTransfer(msg.sender, totalTokens);
-        bidTicket.mint(msg.sender, bidTicketTokenId, totalTokens * bidTicketMultiplier);
-
-        for (uint256 i; i < batchItemsCount; ++i) {
-            BatchItem memory item = batchItems[i];
-            if (item.tokenType == TokenType.ERC20) {    
-                IERC20(item.contractAddress).transferFrom(msg.sender, theBarn, item.count);
-            } else if (item.tokenType == TokenType.ERC721) {
-                IERC721(item.contractAddress).transferFrom(msg.sender, theBarn, item.tokenId);
-            } else if (item.tokenType == TokenType.ERC1155) {
-                IERC1155(item.contractAddress).safeTransferFrom(msg.sender, theBarn, item.tokenId, item.count, "");
+            if (currentType == TokenType.ERC20) {    
+                IERC20(currentContract).transferFrom(msg.sender, theBarn, count);
+            } else if (currentType == TokenType.ERC721) {
+                IERC721(currentContract).transferFrom(msg.sender, theBarn, tokenIds[i]);
+            } else if (currentType == TokenType.ERC1155) {
+                IERC1155(currentContract).safeTransferFrom(msg.sender, theBarn, tokenIds[i], count, "");
             } else {
                 revert InvalidTokenType();
             }
         }
 
-        (bool success,) = payable(msg.sender).call{value: salePrice * totalTokens}("");
+        require(totalTokens <= maxTokensPerTx, MaxTokensPerTxReached());
+
+        emit Sale(msg.sender, totalTokens);
+        
+        if (!skipBidTicket) {
+            bidTicket.mint(msg.sender, bidTicketTokenId, totalTokens * bidTicketMultiplier);
+        }
+
+        uint256 totalSalePrice = salePrice * totalTokens;
+
+        (bool success,) = payable(msg.sender).call{value: totalSalePrice}("");
+        require(success, TransferFailed());
+
+        _transferServiceFee(totalSalePrice);
+    }
+
+    function _transferServiceFee(uint256 totalSalePrice) private {
+        (bool success,) = payable(theFarmer).call{value: msg.value >= totalSalePrice ? msg.value - totalSalePrice : 0}("");
         require(success, TransferFailed());
     }
 
+    /**
+     * Owner-only functions
+     */
+
     function setBarn(address theBarn_) public onlyOwner {
         theBarn = theBarn_;
+    }
+
+    function setFarmer(address theFarmer_) public onlyOwner {
+        theFarmer = theFarmer_;
     }
 
     function setBidTicketAddress(address bidTicket_) external onlyOwner {
@@ -140,6 +246,10 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
 
     function setSalePrice(uint256 salePrice_) public onlyOwner {
         salePrice = salePrice_;
+    }
+
+    function setServiceFee(uint256 serviceFee_) public onlyOwner {
+        serviceFee = serviceFee_;
     }
 
     function withdrawBalance() external onlyOwner {
