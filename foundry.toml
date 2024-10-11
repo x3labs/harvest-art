@@ -6,6 +6,7 @@ gas_reports = ["*"]
 gas_reports_ignore = ["Mock721", "Mock1155", "MockHarvestContract", "MockAuctionsContract", "HarvestTest", "AuctionsTest"]
 via_ir = true
 evm_version = 'cancun'
+solc_version = '0.8.27'
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"

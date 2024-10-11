@@ -42,14 +42,14 @@ contract HarvestTest is Test {
         mock20.mint(user2, 1000);
 
         mock721 = new Mock721();
-        mock721.mint(user1, 200);
-        mock721.mint(user2, 200);
+        mock721.mint(user1, 1000);
+        mock721.mint(user2, 1000);
 
         mock1155 = new Mock1155();
-        mock1155.mint(user1, 1, 100, "");
-        mock1155.mint(user1, 2, 100, "");
-        mock1155.mint(user2, 1, 10, "");
-        mock1155.mint(user2, 2, 10, "");
+        mock1155.mint(user1, 1, 1000, "");
+        mock1155.mint(user1, 2, 1000, "");
+        mock1155.mint(user2, 1, 100, "");
+        mock1155.mint(user2, 2, 100, "");
         mock1155.mint(user2, 8713622684881697175405882435050837487846425701885818202561849736562519048193, 10, "");
 
         vm.deal(address(harvest), 10 ether);
@@ -287,7 +287,7 @@ contract HarvestTest is Test {
     }
 
     function test_batchSale_RevertIf_EmptyTokenContracts() public {
-        vm.expectRevert(bytes4(keccak256("InvalidTokenContractLength()")));
+        vm.expectRevert(bytes4(keccak256("InvalidParamsLength()")));
 
         TokenType[] memory tokenTypes = new TokenType[](0);
         address[] memory tokenContracts = new address[](0);
@@ -534,7 +534,7 @@ contract HarvestTest is Test {
 
     function test_erc721Sale_RevertIf_NotOwner() public {
         uint256[] memory tokenIds = new uint256[](1);
-        tokenIds[0] = 201;
+        tokenIds[0] = 1001;
 
         harvest.setBarn(theBarn);
 
@@ -552,7 +552,7 @@ contract HarvestTest is Test {
         tokenIds[0] = 1;
 
         uint256[] memory counts = new uint256[](1);
-        counts[0] = 101;
+        counts[0] = 1001;
 
         harvest.setBarn(theBarn);
 
@@ -561,6 +561,206 @@ contract HarvestTest is Test {
 
         vm.expectPartialRevert(bytes4(keccak256("ERC1155InsufficientBalance(address,uint256,uint256,uint256)")));
         harvest.erc1155Sale(address(mock1155), tokenIds, counts, false);
+
+        vm.stopPrank();
+    }
+
+    function testGas_erc721Sale() public {
+        uint256[] memory tokenIds = new uint256[](100);
+        for (uint256 i = 0; i < 100; i++) {
+            tokenIds[i] = i + 1;
+        }
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock721.setApprovalForAll(address(harvest), true);
+
+        uint256 gasStart = gasleft();
+        harvest.erc721Sale(address(mock721), tokenIds, false);
+        uint256 gasUsed = gasStart - gasleft();
+        console.log("Gas used by erc721Sale:", gasUsed);
+
+        vm.stopPrank();
+    }
+
+    function testGas_batchSale_ERC721() public {
+        uint256 tokenCount = 100;
+        TokenType[] memory tokenTypes = new TokenType[](tokenCount);
+        address[] memory tokenContracts = new address[](tokenCount);
+        uint256[] memory tokenIds = new uint256[](tokenCount);
+        uint256[] memory counts = new uint256[](tokenCount);
+
+        for (uint256 i = 0; i < tokenCount; i++) {
+            tokenTypes[i] = TokenType.ERC721;
+            tokenContracts[i] = address(mock721);
+            tokenIds[i] = i + 1;
+            counts[i] = 0;
+        }
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock721.setApprovalForAll(address(harvest), true);
+
+        uint256 gasStart = gasleft();
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
+        uint256 gasUsed = gasStart - gasleft();
+        console.log("Gas used by batchSale for ERC721:", gasUsed);
+
+        vm.stopPrank();
+    }
+
+    function testGas_batchSale_ERC721_Zeros() public {
+        uint256 tokenCount = 100;
+        TokenType[] memory tokenTypes = new TokenType[](tokenCount);
+        address[] memory tokenContracts = new address[](tokenCount);
+        uint256[] memory tokenIds = new uint256[](tokenCount);
+        uint256[] memory counts = new uint256[](tokenCount);
+
+        tokenTypes[0] = TokenType.ERC721;
+        tokenContracts[0] = address(mock721);
+        tokenIds[0] = 1;
+        counts[0] = 0;
+        
+        for (uint256 i = 1; i < tokenCount; i++) {
+            tokenTypes[i] = TokenType.ERC721;
+            tokenContracts[i] = address(0);
+            tokenIds[i] = i + 1;
+            counts[i] = 0;
+        }
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock721.setApprovalForAll(address(harvest), true);
+
+        uint256 gasStart = gasleft();
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
+        uint256 gasUsed = gasStart - gasleft();
+        console.log("Gas used by batchSale for ERC721:", gasUsed);
+
+        vm.stopPrank();
+    }
+
+    function testGas_erc1155Sale() public {
+        uint256[] memory tokenIds = new uint256[](100);
+        uint256[] memory counts = new uint256[](100);
+        for (uint256 i = 0; i < 100; i++) {
+            tokenIds[i] = 1;
+            counts[i] = 10;
+        }
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock1155.setApprovalForAll(address(harvest), true);
+
+        uint256 gasStart = gasleft();
+        harvest.erc1155Sale(address(mock1155), tokenIds, counts, false);
+        uint256 gasUsed = gasStart - gasleft();
+        console.log("Gas used by erc1155Sale:", gasUsed);
+
+        vm.stopPrank();
+    }
+
+    function testGas_batchSale_ERC1155() public {
+        uint256 tokenCount = 100;
+        TokenType[] memory tokenTypes = new TokenType[](tokenCount);
+        address[] memory tokenContracts = new address[](tokenCount);
+        uint256[] memory tokenIds = new uint256[](tokenCount);
+        uint256[] memory counts = new uint256[](tokenCount);
+
+        for (uint256 i = 0; i < tokenCount; i++) {
+            tokenTypes[i] = TokenType.ERC1155;
+            tokenContracts[i] = address(mock1155);
+            tokenIds[i] = 1;
+            counts[i] = 10;
+        }
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock1155.setApprovalForAll(address(harvest), true);
+
+        uint256 gasStart = gasleft();
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
+        uint256 gasUsed = gasStart - gasleft();
+        console.log("Gas used by batchSale for ERC1155:", gasUsed);
+
+        vm.stopPrank();
+    }
+
+    function testGas_batchSale_ERC1155_Zeros() public {
+        uint256 tokenCount = 100;
+        TokenType[] memory tokenTypes = new TokenType[](tokenCount);
+        address[] memory tokenContracts = new address[](tokenCount);
+        uint256[] memory tokenIds = new uint256[](tokenCount);
+        uint256[] memory counts = new uint256[](tokenCount);
+
+        tokenTypes[0] = TokenType.ERC1155;
+        tokenContracts[0] = address(mock1155);
+        tokenIds[0] = 1;
+        counts[0] = 10;
+
+        for (uint256 i = 1; i < tokenCount; i++) {
+            tokenTypes[i] = TokenType.ERC1155;
+            tokenContracts[i] = address(0);
+            tokenIds[i] = 1;
+            counts[i] = 10;
+        }
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock1155.setApprovalForAll(address(harvest), true);
+
+        uint256 gasStart = gasleft();
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
+        uint256 gasUsed = gasStart - gasleft();
+        console.log("Gas used by batchSale for ERC1155_Zeros:", gasUsed);
+
+        vm.stopPrank();
+    }
+
+    function testGas_erc20Sale() public {
+        uint256 amount = 1000;
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock20.approve(address(harvest), type(uint256).max);
+
+        uint256 gasStart = gasleft();
+        harvest.erc20Sale(address(mock20), amount, false);
+        uint256 gasUsed = gasStart - gasleft();
+        console.log("Gas used by erc20Sale:", gasUsed);
+
+        vm.stopPrank();
+    }
+
+    function testGas_batchSale_ERC20() public {
+        uint256 tokenCount = 100;
+        TokenType[] memory tokenTypes = new TokenType[](tokenCount);
+        address[] memory tokenContracts = new address[](tokenCount);
+        uint256[] memory tokenIds = new uint256[](tokenCount);
+        uint256[] memory counts = new uint256[](tokenCount);
+
+        for (uint256 i = 0; i < tokenCount; i++) {
+            tokenTypes[i] = TokenType.ERC20;
+            tokenContracts[i] = address(mock20);
+            tokenIds[i] = 0;
+            counts[i] = 10;
+        }
+
+        harvest.setBarn(theBarn);
+
+        vm.startPrank(user1);
+        mock20.approve(address(harvest), type(uint256).max);
+
+        uint256 gasStart = gasleft();
+        harvest.batchSale(tokenTypes, tokenContracts, tokenIds, counts, false);
+        uint256 gasUsed = gasStart - gasleft();
+        console.log("Gas used by batchSale for ERC20:", gasUsed);
 
         vm.stopPrank();
     }

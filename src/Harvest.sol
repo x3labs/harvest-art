@@ -65,7 +65,7 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
         emit Sale(msg.sender, salePrice);
 
         if (!skipBidTicket) {
-            bidTicket.mint(msg.sender, bidTicketTokenId, 1 * bidTicketMultiplier);
+            bidTicket.mint(msg.sender, bidTicketTokenId, bidTicketMultiplier);
         }
 
         IERC20(contractAddress).transferFrom(msg.sender, theBarn, amount);
@@ -90,15 +90,24 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
         bool skipBidTicket
     ) external payable nonReentrant {
         uint256 length = tokenIds.length;
-        require(length < maxTokensPerTx, MaxTokensPerTxReached());
+        require(length > 0, InvalidParamsLength());
+        require(length <= maxTokensPerTx, MaxTokensPerTxReached());
         require(msg.value >= serviceFee, InvalidServiceFee());
 
-        uint256 totalSalePrice = salePrice * length;
+        uint256 totalSalePrice;
+        unchecked {
+            totalSalePrice = salePrice * length;
+        }
 
         emit Sale(msg.sender, totalSalePrice);
         
         if (!skipBidTicket) {
-            bidTicket.mint(msg.sender, bidTicketTokenId, length * bidTicketMultiplier);
+            uint256 totalTickets;
+            unchecked {
+                totalTickets = length * bidTicketMultiplier;
+            }
+
+            bidTicket.mint(msg.sender, bidTicketTokenId, totalTickets);
         }
 
         for (uint256 i; i < length; ++i) {
@@ -127,15 +136,24 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
         bool skipBidTicket
     ) external payable nonReentrant {
         uint256 length = tokenIds.length;
-        require(length == counts.length, InvalidParamsLength());
+        require(length > 0 && length == counts.length, InvalidParamsLength());
+        require(length <= maxTokensPerTx, MaxTokensPerTxReached());
         require(msg.value >= serviceFee, InvalidServiceFee());
 
-        uint256 totalSalePrice = salePrice * length;
+        uint256 totalSalePrice;
+        unchecked {
+            totalSalePrice = salePrice * length;
+        }
 
         emit Sale(msg.sender, totalSalePrice);
         
         if (!skipBidTicket) {
-            bidTicket.mint(msg.sender, bidTicketTokenId, length * bidTicketMultiplier);
+            uint256 totalTickets;
+            unchecked {
+                totalTickets = length * bidTicketMultiplier;
+            }
+
+            bidTicket.mint(msg.sender, bidTicketTokenId, totalTickets);
         }
 
         IERC1155(contractAddress).safeBatchTransferFrom(msg.sender, theBarn, tokenIds, counts, "");
@@ -164,22 +182,21 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
         uint256[] calldata counts,
         bool skipBidTicket
     ) external payable nonReentrant {
-        uint256 length = types.length;
-        require(length > 0, InvalidTokenContractLength());
-        require(length == contracts.length && length == tokenIds.length && length == counts.length, InvalidParamsLength());
+        uint256 totalTokens = types.length;
+        require(totalTokens > 0 
+            && totalTokens == contracts.length 
+            && totalTokens == tokenIds.length 
+            && totalTokens == counts.length, 
+            InvalidParamsLength());
+        require(totalTokens <= maxTokensPerTx, MaxTokensPerTxReached());
         require(msg.value >= serviceFee, InvalidServiceFee());
 
-        uint256 totalTokens;
         address currentContract;
         TokenType currentType;
 
-        for (uint256 i; i < length; ++i) {
+        for (uint256 i; i < totalTokens; ++i) {
             currentContract = contracts[i] == address(0) ? currentContract : contracts[i];
             require(currentContract != address(0), InvalidTokenContract());
-
-            unchecked {
-                ++totalTokens;
-            }
 
             uint256 count = counts[i];
             currentType = types[i];
@@ -195,15 +212,21 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
             }
         }
 
-        require(totalTokens <= maxTokensPerTx, MaxTokensPerTxReached());
-
-        emit Sale(msg.sender, totalTokens);
-        
-        if (!skipBidTicket) {
-            bidTicket.mint(msg.sender, bidTicketTokenId, totalTokens * bidTicketMultiplier);
+        uint256 totalSalePrice;
+        unchecked {
+            totalSalePrice = salePrice * totalTokens;
         }
 
-        uint256 totalSalePrice = salePrice * totalTokens;
+        emit Sale(msg.sender, totalSalePrice);
+        
+        if (!skipBidTicket) {
+            uint256 totalTickets;
+            unchecked {
+                totalTickets = totalTokens * bidTicketMultiplier;
+            }
+
+            bidTicket.mint(msg.sender, bidTicketTokenId, totalTickets);
+        }
 
         (bool success,) = payable(msg.sender).call{value: totalSalePrice}("");
         require(success, TransferFailed());
@@ -212,7 +235,8 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
     }
 
     function _transferServiceFee(uint256 totalSalePrice) private {
-        (bool success,) = payable(theFarmer).call{value: msg.value >= totalSalePrice ? msg.value - totalSalePrice : 0}("");
+        uint256 serviceFee_ = msg.value >= totalSalePrice ? msg.value - totalSalePrice : 0;
+        (bool success,) = payable(theFarmer).call{value: serviceFee_}("");
         require(success, TransferFailed());
     }
 
