@@ -14,6 +14,7 @@ contract Deploy is Factory {
         bytes memory args = abi.encode(
             vm.envAddress("ADDRESS_DEPLOYER"), 
             vm.envAddress("ADDRESS_BARN"), 
+            vm.envAddress("ADDRESS_FARMER"),
             vm.envAddress("ADDRESS_CONTRACT_BID_TICKET")
         );
         bytes32 salt = vm.envBytes32("SALT_HARVEST");

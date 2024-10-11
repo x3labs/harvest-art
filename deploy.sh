@@ -163,7 +163,7 @@ deploy() {
     # forge verify-contract 0x62613AA9594D0116b5CA23aCd37dDDAc90c67E5c \
     #    src/BidTicket.sol:BidTicket --watch --chain-id 80002 \
     # --constructor-args $(cast abi-encode "constructor(address)" 0x69B1A9f37fFEe30a992388A46883c6880527B818) \
-    # --optimizer-runs 10000
+    # --optimizer-runs 100000
 # }
 
 if [ $# -ne 2 ]; then

@@ -24,29 +24,12 @@ interface IHarvest {
     error InvalidTokenType();
     error MaxTokensPerTxReached();
     error TransferFailed();
+    error SalePriceTooHigh();
+    error ServiceFeeTooLow();
 
     function batchSale(
         TokenType[] calldata types,
         address[] calldata contracts,
-        uint256[] calldata tokenIds,
-        uint256[] calldata counts,
-        bool skipBidTicket
-    ) external payable;
-
-    function erc20Sale(
-        address contractAddress,
-        uint256 amount,
-        bool skipBidTicket
-    ) external payable;
-
-    function erc721Sale(
-        address contractAddress,
-        uint256[] calldata tokenIds,
-        bool skipBidTicket
-    ) external payable;
-
-    function erc1155Sale(
-        address contractAddress,
         uint256[] calldata tokenIds,
         uint256[] calldata counts,
         bool skipBidTicket
