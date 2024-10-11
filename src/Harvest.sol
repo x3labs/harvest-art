@@ -17,13 +17,6 @@ import "solady/auth/Ownable.sol";
 import "solady/utils/ReentrancyGuard.sol";
 
 contract Harvest is IHarvest, Ownable, ReentrancyGuard {
-    struct BatchItem {
-        TokenType tokenType;
-        address contractAddress;
-        uint256 tokenId;
-        uint256 count;
-    }
-
     IBidTicket public bidTicket;
     address public theBarn;
     address public theFarmer;
@@ -32,8 +25,6 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
     uint256 public maxTokensPerTx = 500;
     uint256 public bidTicketTokenId = 1;
     uint256 public bidTicketMultiplier = 1;
-
-    mapping(address => uint256) public tokenIdToMultiplier;
 
     constructor(
         address owner_,
@@ -276,6 +267,10 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
         serviceFee = serviceFee_;
     }
 
+    /**
+     * Emergency withdrawal functions just in case apes don't read (they don't)
+     */
+
     function withdrawBalance() external onlyOwner {
         (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
         require(success, TransferFailed());
@@ -285,6 +280,10 @@ contract Harvest is IHarvest, Ownable, ReentrancyGuard {
         IERC20(tokenAddress).transfer(msg.sender, amount);
     }
 
+    function withdrawERC721(address tokenAddress, uint256 tokenId, address to) external onlyOwner {
+        IERC721(tokenAddress).safeTransferFrom(address(this), to, tokenId);
+    }
+    
     receive() external payable {}
 
     fallback() external payable {}
