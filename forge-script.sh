@@ -7,11 +7,6 @@ if [ -z "$ALCHEMY_API_KEY" ]; then
     exit 1
 fi
 
-if [ -z "$ETHERSCAN_API_KEY" ]; then
-    echo "Missing ETHERSCAN_API_KEY"
-    exit 1
-fi
-
 anvil() {
     local script_name=$1
     local is_testnet=true
@@ -44,18 +39,15 @@ get_rpc_url() {
             echo -n "https://eth-holesky.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         base-sepolia)
-            export ETHERSCAN_API_KEY=$BASESCAN_API_KEY
             echo -n "https://base-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         amoy)
-            export ETHERSCAN_API_KEY=$POLYGONSCAN_API_KEY
             echo -n "https://polygon-amoy.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         mainnet)
             echo -n "https://eth-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         polygon)
-            export ETHERSCAN_API_KEY=$POLYGONSCAN_API_KEY
             echo -n "https://polygon-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         optimism)
@@ -65,11 +57,19 @@ get_rpc_url() {
             echo -n "https://arb-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         base)
-            export ETHERSCAN_API_KEY=$BASESCAN_API_KEY
             echo -n "https://base-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         zksync)
             echo -n "https://zksync-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
+            ;;
+        zksync-sepolia)
+            echo -n "https://zksync-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY"
+            ;;
+        blast)
+            echo -n "https://blast-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
+            ;;
+        avalanche)
+            echo -n "https://avax-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
         *)
             echo -n ""
@@ -106,8 +106,14 @@ get_script() {
                 echo -n "script/DeployBidTicket.s.sol:Deploy"
             fi
             ;;
+        dispenser)
+            echo -n "script/DeployTicketDispenser.s.sol:Deploy"
+            ;;
         mocks)
             echo -n "script/DeployMockTokens.s.sol:DeployMockTokens"
+            ;;
+        newdrop)
+            echo -n "script/NewDrop.s.sol:NewDrop"
             ;;
         *)
             echo -n ""
@@ -115,7 +121,7 @@ get_script() {
     esac
 }
 
-deploy() {
+run_script() {
     local network=$1
     local script_name=$2
 
@@ -147,24 +153,15 @@ deploy() {
     forge script $script \
         -vvv \
         --rpc-url "$rpc_url" \
-        --force \
         --optimize \
         --optimizer-runs 100000 \
         --gas-estimate-multiplier 125 \
         --legacy \
-        --verify \
         --retries 100 \
         --sender "$ADDRESS_DEPLOYER" \
         --interactives 1 \
         --broadcast
 }
-
-# verifyExample() {
-    # forge verify-contract 0x62613AA9594D0116b5CA23aCd37dDDAc90c67E5c \
-    #    src/BidTicket.sol:BidTicket --watch --chain-id 80002 \
-    # --constructor-args $(cast abi-encode "constructor(address)" 0x69B1A9f37fFEe30a992388A46883c6880527B818) \
-    # --optimizer-runs 100000
-# }
 
 if [ $# -ne 2 ]; then
     echo "Usage: $0 <network> <script_name>"
@@ -181,7 +178,7 @@ case $network in
         anvil $script_name
         ;;
     *)
-        deploy $network $script_name
+        run_script $network $script_name
         ;;
 esac
 
