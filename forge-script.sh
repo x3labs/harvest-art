@@ -71,6 +71,12 @@ get_rpc_url() {
         avalanche)
             echo -n "https://avax-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
             ;;
+        apechain)
+            echo -n "https://apechain-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
+            ;;
+        abstract)
+            echo -n "https://abstract-mainnet.g.alchemy.com/v2/$ALCHEMY_API_KEY"
+            ;;
         *)
             echo -n ""
             ;;
@@ -114,6 +120,9 @@ get_script() {
             ;;
         newdrop)
             echo -n "script/NewDrop.s.sol:NewDrop"
+            ;;
+        settings)
+            echo -n "script/UpdateSettings.s.sol:UpdateSettings"
             ;;
         *)
             echo -n ""
@@ -166,7 +175,7 @@ run_script() {
 if [ $# -ne 2 ]; then
     echo "Usage: $0 <network> <script_name>"
     echo "Networks: anvil, sepolia, mainnet, polygon, optimism, arbitrum, base, base-sepolia, zksync"
-    echo "Script names: all, harvest, auctions, bidticket"
+    echo "Script names: all, harvest, auctions, bidticket, dispenser, mocks, newdrop, settings"
     exit 1
 fi
 

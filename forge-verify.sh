@@ -25,6 +25,9 @@ get_etherscan_api_key() {
         optimism)
             echo -n "$OPTIMISM_API_KEY"
             ;;
+        apechain)
+            echo -n "$APESCAN_API_KEY"
+            ;;
         *)
             echo -n "$ETHERSCAN_API_KEY"
             ;;
@@ -73,6 +76,12 @@ get_chain_id() {
             ;;
         avalanche)
             echo -n "43114"
+            ;;
+        apechain)
+            echo -n "33139"
+            ;;
+        abstract)
+            echo -n "2741"
             ;;
         *)
             echo -n ""
